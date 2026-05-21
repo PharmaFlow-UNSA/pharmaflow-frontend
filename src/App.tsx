@@ -9,6 +9,8 @@ import { ProductAvailabilityPage } from "@/pages/ProductAvailabilityPage";
 import { ProductsPage } from "@/pages/ProductsPage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { RegisterPage } from "@/pages/RegisterPage";
+import { ReservationsPage } from "@/pages/ReservationsPage";
+import { ReserveProductPage } from "@/pages/ReserveProductPage";
 
 export function App() {
   return (
@@ -24,7 +26,9 @@ export function App() {
             <Route index element={<HomePage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="products/:productId/availability" element={<ProductAvailabilityPage />} />
+            <Route path="products/:productId/reserve" element={<ReserveProductPage />} />
             <Route path="orders" element={<OrdersPage />} />
+            <Route path="reservations" element={<ReservationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
         </Route>

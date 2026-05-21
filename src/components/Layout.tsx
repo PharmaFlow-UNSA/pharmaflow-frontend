@@ -35,6 +35,7 @@ export function Layout() {
               <NavTab to="/" end>Home</NavTab>
               <NavTab to="/products">Products</NavTab>
               <NavTab to="/orders">My orders</NavTab>
+              <NavTab to="/reservations">Reservations</NavTab>
               <NavTab to="/profile">Profile</NavTab>
             </nav>
           </div>

@@ -97,6 +97,14 @@ export function ProductAvailabilityPage() {
                   {ph?.openingHours && (
                     <p className="mt-2 text-xs text-slate-500">Hours: {ph.openingHours}</p>
                   )}
+                  {inv.quantity > 0 && (
+                    <Link
+                      to={`/products/${id}/reserve?pharmacyId=${inv.pharmacyId}`}
+                      className="mt-3 inline-flex items-center rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+                    >
+                      Reserve here
+                    </Link>
+                  )}
                 </CardContent>
               </Card>
             );

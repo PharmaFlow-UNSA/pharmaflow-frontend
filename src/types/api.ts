@@ -78,6 +78,42 @@ export interface InventoryDTO {
   lastRestockedAt?: string;
 }
 
+export type ReservationStatus =
+  | "PENDING"
+  | "READY"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "COMPLETED";
+
+/**
+ * Backend Jackson serializes LocalDateTime either as an ISO string OR as a
+ * [year, month, day, hour, minute, second, nanos] array depending on the
+ * service's ObjectMapper config. Type permissively and convert with parseInstant.
+ */
+export type JavaInstant = string | number[];
+
+export interface ReservationDTO {
+  id: number;
+  userId: number;
+  productId: number;
+  pharmacyId: number;
+  quantity: number;
+  status: ReservationStatus;
+  reservedAt: JavaInstant;
+  expiresAt?: JavaInstant;
+}
+
+export interface ReservationCreatePayload {
+  userId: number;
+  productId: number;
+  pharmacyId: number;
+  quantity: number;
+  /** Backend validates these, the SPA fills them in with sensible defaults */
+  status: ReservationStatus;
+  reservedAt: string;
+  expiresAt?: string;
+}
+
 // order-prescription-service
 export type OrderStatus = "PENDING" | "CONFIRMED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
 
