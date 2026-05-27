@@ -1,6 +1,6 @@
 import axios from "axios";
 import { api, GATEWAY_URL, tokenStorage } from "./client";
-import type { AuthResponse, Role } from "@/types/api";
+import type { AuthResponse, ChangePasswordPayload, Role } from "@/types/api";
 
 export interface LoginPayload {
   email: string;
@@ -45,4 +45,8 @@ export async function logout(): Promise<void> {
   } finally {
     tokenStorage.clear();
   }
+}
+
+export async function changePassword(payload: ChangePasswordPayload): Promise<void> {
+  await api.post("/api/auth/change-password", payload);
 }

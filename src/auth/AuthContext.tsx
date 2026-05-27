@@ -20,6 +20,9 @@ import { AuthCtx, type AuthState, type AuthUser } from "./context";
 interface JwtPayload {
   sub: string;
   roles: Role[];
+  userId?: number;
+  firstName?: string;
+  lastName?: string;
   iat: number;
   exp: number;
 }
@@ -52,7 +55,12 @@ function userFromStoredToken(): AuthUser | null {
     tokenStorage.clear();
     return null;
   }
-  return { email: claims.sub, roles: claims.roles ?? [] };
+  return {
+    email: claims.sub,
+    roles: claims.roles ?? [],
+    firstName: claims.firstName,
+    lastName: claims.lastName,
+  };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
