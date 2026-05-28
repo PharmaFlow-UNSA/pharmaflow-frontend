@@ -174,7 +174,7 @@ export interface InventoryDTO {
   productId: number;
   quantity: number;
   reorderLevel?: number;
-  lastRestockedAt?: string;
+  lastRestocked?: string;
 }
 
 export type ReservationStatus =
@@ -200,6 +200,7 @@ export interface ReservationDTO {
   status: ReservationStatus;
   reservedAt: JavaInstant;
   expiresAt?: JavaInstant;
+  sagaCorrelationId?: string;
 }
 
 export interface ReservationCreatePayload {
@@ -211,6 +212,40 @@ export interface ReservationCreatePayload {
   reservedAt: string;
   expiresAt?: string;
 }
+
+export interface PharmacyCreatePayload {
+  name: string;
+  address: string;
+  city: string;
+  phoneNumber: string;
+  email: string;
+  openingHours: string;
+}
+
+export type DeliveryStatus =
+  | "PENDING"
+  | "DISPATCHED"
+  | "IN_TRANSIT"
+  | "DELIVERED"
+  | "FAILED";
+
+export interface DeliveryDTO {
+  id: number;
+  orderId: number;
+  pharmacyId: number;
+  deliveryAddress: string;
+  status: DeliveryStatus;
+  estimatedDelivery?: JavaInstant;
+  actualDelivery?: JavaInstant;
+}
+
+export const DELIVERY_STATUS_LABELS: Record<DeliveryStatus, string> = {
+  PENDING: "Pending",
+  DISPATCHED: "Dispatched",
+  IN_TRANSIT: "In transit",
+  DELIVERED: "Delivered",
+  FAILED: "Failed",
+};
 
 // ── order-prescription-service ─────────────────────────────────────────────
 
@@ -240,12 +275,73 @@ export interface OrderDTO {
   status: OrderStatus;
   totalAmount: number;
   shippingAddress: string;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: JavaInstant;
+  updatedAt?: JavaInstant;
   orderItems: OrderItemDTO[];
   payment?: PaymentDTO;
   prescriptionId?: number;
 }
+
+export interface OrderCreatePayload {
+  userId: number;
+  shippingAddress: string;
+  prescriptionId?: number;
+  orderItems: OrderItemDTO[];
+  payment?: PaymentDTO;
+}
+
+// ── Prescriptions ──────────────────────────────────────────────────────────
+
+export type PrescriptionStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface PrescriptionDTO {
+  id: number;
+  userId: number;
+  imageUrl: string;
+  status: PrescriptionStatus;
+  uploadedAt?: JavaInstant;
+  reviewedAt?: JavaInstant;
+  reviewerNotes?: string;
+  orderIds?: number[];
+  autoRefillSubscriptionIds?: number[];
+}
+
+export interface PrescriptionCreatePayload {
+  userId: number;
+  imageUrl: string;
+}
+
+export const PRESCRIPTION_STATUS_LABELS: Record<PrescriptionStatus, string> = {
+  PENDING: "Pending review",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+};
+
+// ── Auto-Refill Subscriptions ──────────────────────────────────────────────
+
+export type AutoRefillStatus = "ACTIVE" | "PAUSED" | "CANCELLED" | "COMPLETED";
+
+export interface AutoRefillSubscriptionDTO {
+  id: number;
+  userId: number;
+  productId: number;
+  dosagePerDay: number;
+  tabletsPerPackage: number;
+  intervalDays?: number;
+  nextOrderDate?: string;
+  status: AutoRefillStatus;
+  shippingAddress: string;
+  prescriptionId?: number;
+}
+
+export type AutoRefillCreatePayload = Omit<AutoRefillSubscriptionDTO, "id" | "intervalDays" | "nextOrderDate">;
+
+export const AUTO_REFILL_STATUS_LABELS: Record<AutoRefillStatus, string> = {
+  ACTIVE: "Active",
+  PAUSED: "Paused",
+  CANCELLED: "Cancelled",
+  COMPLETED: "Completed",
+};
 
 // Spring Data Page wrapper — every paginated GET returns this shape.
 export interface Page<T> {

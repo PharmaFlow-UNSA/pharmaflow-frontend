@@ -117,12 +117,20 @@ export function ProductsPage() {
                   {p.description && (
                     <p className="line-clamp-2 text-sm text-slate-600">{p.description}</p>
                   )}
-                  <Link
-                    to={`/products/${p.id}/availability`}
-                    className="mt-3 inline-block text-sm font-medium text-brand-700 hover:underline"
-                  >
-                    Check availability →
-                  </Link>
+                  <div className="mt-3 flex items-center gap-4 text-sm font-medium">
+                    <Link
+                      to={`/products/${p.id}/availability`}
+                      className="text-brand-700 hover:underline"
+                    >
+                      Availability →
+                    </Link>
+                    <Link
+                      to={`/products/${p.id}/order`}
+                      className="text-brand-700 hover:underline"
+                    >
+                      Order →
+                    </Link>
+                  </div>
                 </CardContent>
               </Card>
             ))}

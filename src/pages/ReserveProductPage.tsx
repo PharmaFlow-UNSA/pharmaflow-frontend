@@ -8,6 +8,7 @@ import { z } from "zod";
 import { getPharmacies } from "@/api/pharmacies";
 import { getProductById } from "@/api/products";
 import { createReservation } from "@/api/reservations";
+import { getCurrentUser } from "@/api/users";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -15,7 +16,6 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 
 const reservationFormSchema = z.object({
-  userId: z.number().int().positive("User id is required"),
   productId: z.number().int().positive("Product id is required"),
   pharmacyId: z.number().int().positive("Pharmacy id is required"),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
@@ -26,10 +26,8 @@ type FormValues = z.infer<typeof reservationFormSchema>;
 /**
  * Reservation form. Reached from ProductAvailabilityPage via a per-pharmacy
  * "Reserve here" button that deep-links with productId in the path and
- * pharmacyId in the query string, so the form arrives pre-populated.
- *
- * userId defaults to 2 (the seeded user@example.com) since the backend has no
- * /api/auth/me endpoint to derive the numeric id from the JWT.
+ * pharmacyId in the query string, so the form arrives pre-populated. The
+ * authenticated user id is read from /api/users/me, not entered manually.
  */
 export function ReserveProductPage() {
   const { productId: productIdParam } = useParams();
@@ -40,6 +38,12 @@ export function ReserveProductPage() {
 
   const productIdNumeric = Number(productIdParam);
   const pharmacyIdNumeric = pharmacyIdParam ? Number(pharmacyIdParam) : NaN;
+
+  const currentUser = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: getCurrentUser,
+    staleTime: 60_000,
+  });
 
   const product = useQuery({
     queryKey: ["product", productIdNumeric],
@@ -61,7 +65,6 @@ export function ReserveProductPage() {
   } = useForm<FormValues>({
     resolver: zodResolver(reservationFormSchema),
     defaultValues: {
-      userId: 2,
       productId: Number.isFinite(productIdNumeric) ? productIdNumeric : 1,
       pharmacyId: Number.isFinite(pharmacyIdNumeric) ? pharmacyIdNumeric : 1,
       quantity: 1,
@@ -83,10 +86,12 @@ export function ReserveProductPage() {
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
+      if (!currentUser.data?.id) throw new Error("Not authenticated");
       const now = new Date();
       const expires = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +24h
       return createReservation({
         ...values,
+        userId: currentUser.data.id,
         status: "PENDING",
         // backend expects LocalDateTime; trim the trailing "Z"
         reservedAt: now.toISOString().slice(0, 19),
@@ -141,21 +146,12 @@ export function ReserveProductPage() {
           )}
 
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="userId">User ID</Label>
-                <Input id="userId" type="number" min={1} {...register("userId", { valueAsNumber: true })} />
-                <p className="text-xs text-slate-500">Default 2 = seeded <code>user@example.com</code></p>
-                {errors.userId && <p className="text-xs text-red-600">{errors.userId.message}</p>}
-              </div>
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="quantity">Quantity</Label>
                 <Input id="quantity" type="number" min={1} {...register("quantity", { valueAsNumber: true })} />
                 {errors.quantity && <p className="text-xs text-red-600">{errors.quantity.message}</p>}
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="productId">Product ID</Label>
                 <Input id="productId" type="number" min={1} {...register("productId", { valueAsNumber: true })} />
