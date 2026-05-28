@@ -34,9 +34,12 @@ export function Layout() {
             <nav className="flex items-center gap-1">
               <NavTab to="/" end>Home</NavTab>
               <NavTab to="/products">Products</NavTab>
+              <NavTab to="/categories">Categories</NavTab>
+              <NavTab to="/interactions">Interactions</NavTab>
               <NavTab to="/pharmacies">Pharmacies</NavTab>
               <NavTab to="/orders">Orders</NavTab>
               <NavTab to="/prescriptions">Prescriptions</NavTab>
+              <NavTab to="/reservations">Reservations</NavTab>
               <NavTab to="/health">Health</NavTab>
               <NavTab to="/profile">Profile</NavTab>
             </nav>
