@@ -36,13 +36,18 @@ export function Layout() {
               <NavTab to="/products">Products</NavTab>
               <NavTab to="/orders">My orders</NavTab>
               <NavTab to="/reservations">Reservations</NavTab>
+              <NavTab to="/health">Health</NavTab>
               <NavTab to="/profile">Profile</NavTab>
             </nav>
           </div>
           <div className="flex items-center gap-3">
             {user && (
               <>
-                <span className="text-sm text-slate-600">{user.email}</span>
+                <span className="text-sm text-slate-600">
+                  {user.firstName
+                    ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ""}`
+                    : user.email}
+                </span>
                 {user.roles.map((r) => (
                   <Badge key={r} variant={roleBadgeVariant[r]}>
                     {roleLabel[r]}
