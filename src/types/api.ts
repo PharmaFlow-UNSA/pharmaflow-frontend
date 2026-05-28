@@ -2,7 +2,11 @@
 // PharmaFlow DTOs — kept in sync with the Java DTOs in the backend.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type Role = "ROLE_USER" | "ROLE_DOCTOR" | "ROLE_PHARMACIST" | "ROLE_ADMIN";
+export type Role =
+  | "ROLE_USER"
+  | "ROLE_DOCTOR"
+  | "ROLE_PHARMACIST"
+  | "ROLE_ADMIN";
 
 export interface AuthResponse {
   accessToken: string;
@@ -36,7 +40,12 @@ export type BloodType =
   | "O_POSITIVE"
   | "O_NEGATIVE";
 
-export type Severity = "LOW" | "MODERATE" | "HIGH" | "SEVERE" | "LIFE_THREATENING";
+export type Severity =
+  | "LOW"
+  | "MODERATE"
+  | "HIGH"
+  | "SEVERE"
+  | "LIFE_THREATENING";
 
 export type Relationship =
   | "SPOUSE"
@@ -214,7 +223,12 @@ export interface ReservationCreatePayload {
 
 // ── order-prescription-service ─────────────────────────────────────────────
 
-export type OrderStatus = "PENDING" | "CONFIRMED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+export type OrderStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "SHIPPED"
+  | "DELIVERED"
+  | "CANCELLED";
 
 export interface OrderItemDTO {
   id?: number;
@@ -256,4 +270,87 @@ export interface Page<T> {
   size: number;
   first: boolean;
   last: boolean;
+}
+
+// ── product-health-service extended types ─────────────────────────────────
+
+export type ProductType =
+  | "MEDICATION"
+  | "SUPPLEMENT"
+  | "COSMETIC"
+  | "MEDICAL_DEVICE";
+
+export interface CategoryDTO {
+  id: number;
+  name: string;
+  description?: string;
+  parentCategoryId?: number;
+}
+
+export interface SubstanceDTO {
+  id: number;
+  inn: string;
+  commonName?: string;
+  atcCode?: string;
+  description?: string;
+}
+
+export type SeverityLevel = "MINOR" | "MODERATE" | "MAJOR";
+
+export interface DrugInteractionDTO {
+  id: number;
+  substanceAId: number;
+  substanceBId: number;
+  substanceAName?: string;
+  substanceBName?: string;
+  severity: SeverityLevel;
+  description?: string;
+  clinicalRecommendation?: string;
+}
+
+export type ContraindicationType =
+  | "DISEASE"
+  | "ALLERGY"
+  | "PREGNANCY"
+  | "AGE"
+  | "OTHER";
+export type ContraindicationSeverity = "ABSOLUTE" | "RELATIVE";
+
+export interface ContraindicationDTO {
+  id: number;
+  substance?: SubstanceDTO;
+  type: ContraindicationType;
+  conditionName: string;
+  description?: string;
+  severityType: ContraindicationSeverity;
+}
+
+export type SubstituteType = "GENERIC" | "THERAPEUTIC" | "BIOSIMILAR";
+
+export interface ProductSubstituteDTO {
+  id: number;
+  originalProduct?: ProductDTO;
+  substituteProduct?: ProductDTO;
+  substituteType: SubstituteType;
+  isTherapeuticEquivalent?: boolean;
+  note?: string;
+}
+
+export interface ProductCreatePayload {
+  name: string;
+  barcode: string;
+  brandName?: string;
+  manufacturer: string;
+  description?: string;
+  price: number;
+  packageSize?: string;
+  productType: ProductType;
+  requiresPrescription: boolean;
+  categoryId: number;
+  imageUrl?: string;
+}
+
+export interface CategoryCreatePayload {
+  name: string;
+  description?: string;
 }
