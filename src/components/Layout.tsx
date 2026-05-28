@@ -36,7 +36,9 @@ export function Layout() {
               <NavTab to="/products">Products</NavTab>
               <NavTab to="/categories">Categories</NavTab>
               <NavTab to="/interactions">Interactions</NavTab>
-              <NavTab to="/orders">My orders</NavTab>
+              <NavTab to="/pharmacies">Pharmacies</NavTab>
+              <NavTab to="/orders">Orders</NavTab>
+              <NavTab to="/prescriptions">Prescriptions</NavTab>
               <NavTab to="/reservations">Reservations</NavTab>
               <NavTab to="/health">Health</NavTab>
               <NavTab to="/profile">Profile</NavTab>

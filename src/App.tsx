@@ -3,11 +3,18 @@ import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { Layout } from "@/components/Layout";
 import { AllergiesPage } from "@/pages/AllergiesPage";
+import { AutoRefillsPage } from "@/pages/AutoRefillsPage";
+import { DeliveriesPage } from "@/pages/DeliveriesPage";
 import { FamilyMembersPage } from "@/pages/FamilyMembersPage";
 import { HealthPage } from "@/pages/HealthPage";
 import { HomePage } from "@/pages/HomePage";
 import { LoginPage } from "@/pages/LoginPage";
+import { OrderDetailPage } from "@/pages/OrderDetailPage";
+import { OrderProductPage } from "@/pages/OrderProductPage";
 import { OrdersPage } from "@/pages/OrdersPage";
+import { PharmaciesPage } from "@/pages/PharmaciesPage";
+import { PharmacyDetailPage } from "@/pages/PharmacyDetailPage";
+import { PrescriptionsPage } from "@/pages/PrescriptionsPage";
 import { ProductAvailabilityPage } from "@/pages/ProductAvailabilityPage";
 import { ProductDetailPage } from "@/pages/ProductDetailPage";
 import { ProductFormPage } from "@/pages/ProductFormPage";
@@ -35,6 +42,8 @@ export function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route index element={<HomePage />} />
+
+            {/* Catalog */}
             <Route path="products" element={<ProductsPage />} />
             <Route path="products/:productId/availability" element={<ProductAvailabilityPage />} />
             <Route path="products/new" element={
@@ -56,8 +65,19 @@ export function App() {
               <Route index element={<DrugInteractionsPage />} />
             </Route>
             <Route path="products/:productId/reserve" element={<ReserveProductPage />} />
+            <Route path="products/:productId/order" element={<OrderProductPage />} />
+
+            {/* Order & Prescription Service */}
             <Route path="orders" element={<OrdersPage />} />
+            <Route path="orders/:orderId" element={<OrderDetailPage />} />
+            <Route path="prescriptions" element={<PrescriptionsPage />} />
+            <Route path="auto-refills" element={<AutoRefillsPage />} />
+
+            {/* Pharmacy & Inventory Service */}
+            <Route path="pharmacies" element={<PharmaciesPage />} />
+            <Route path="pharmacies/:pharmacyId" element={<PharmacyDetailPage />} />
             <Route path="reservations" element={<ReservationsPage />} />
+            <Route path="deliveries" element={<DeliveriesPage />} />
 
             {/* User & Health Service */}
             <Route path="health" element={<HealthPage />} />
