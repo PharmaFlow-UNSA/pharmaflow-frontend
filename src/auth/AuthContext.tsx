@@ -19,8 +19,8 @@ import { AuthCtx, type AuthState, type AuthUser } from "./context";
 
 interface JwtPayload {
   sub: string;
-  roles: Role[];
   userId?: number;
+  roles: Role[];
   firstName?: string;
   lastName?: string;
   iat: number;
@@ -39,6 +39,7 @@ function decodeJwt(token: string): JwtPayload | null {
 
 function userFromAuthResponse(resp: AuthResponse): AuthUser {
   return {
+    userId: resp.userId,
     email: resp.email,
     firstName: resp.firstName,
     lastName: resp.lastName,
@@ -56,6 +57,7 @@ function userFromStoredToken(): AuthUser | null {
     return null;
   }
   return {
+    userId: claims.userId,
     email: claims.sub,
     roles: claims.roles ?? [],
     firstName: claims.firstName,

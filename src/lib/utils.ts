@@ -32,3 +32,16 @@ export function formatInstant(value: JavaInstant | null | undefined): string {
   const d = parseInstant(value);
   return d ? d.toLocaleString() : "—";
 }
+
+export function toLocalDateTimeInputValue(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join("-") + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function toBackendLocalDateTime(value: string): string {
+  return value.length === 16 ? `${value}:00` : value;
+}
