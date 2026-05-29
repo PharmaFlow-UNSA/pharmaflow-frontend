@@ -56,13 +56,17 @@ export function OrdersPage() {
     <div>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Orders</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            {isStaff && scope === "all" ? "All orders" : "My orders"}
+          </h1>
           <p className="mt-1 text-slate-600">
             Backed by{" "}
             <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm">
               order-prescription-service
             </code>
-            . Click an order to see items, payment, and delivery status.
+            . {isStaff
+              ? "Switch scope to review all users or just your own orders."
+              : "Click an order to see items, payment, and delivery status."}
           </p>
         </div>
         <Link to="/products">

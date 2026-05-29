@@ -9,6 +9,7 @@ export type Role =
   | "ROLE_ADMIN";
 
 export interface AuthResponse {
+  userId: number;
   accessToken: string;
   refreshToken: string;
   tokenType: "Bearer";
@@ -356,6 +357,363 @@ export const AUTO_REFILL_STATUS_LABELS: Record<AutoRefillStatus, string> = {
   CANCELLED: "Cancelled",
   COMPLETED: "Completed",
 };
+
+// smart-features-service symptoms
+export type SymptomSeverityLevel = "LOW" | "MEDIUM" | "HIGH";
+
+export interface SymptomDTO {
+  id: number;
+  name: string;
+  description?: string | null;
+  tags?: string[] | null;
+  severityLevel?: SymptomSeverityLevel | null;
+  isActive: boolean;
+}
+
+export interface SymptomPayload {
+  name: string;
+  description?: string | null;
+  tags?: string[] | null;
+  severityLevel?: SymptomSeverityLevel | null;
+  isActive: boolean;
+}
+
+export interface SymptomSearchDTO {
+  id: number;
+  userId: number;
+  patientProfileId?: number | null;
+  searchQuery: string;
+  searchedAt: JavaInstant;
+}
+
+export interface SymptomSearchPayload {
+  userId: number;
+  patientProfileId?: number | null;
+  searchQuery: string;
+}
+
+export interface SymptomSearchItemDTO {
+  id: number;
+  searchId: number;
+  symptomId: number;
+  symptomName: string;
+}
+
+export interface SymptomSearchItemPayload {
+  symptomId: number;
+}
+
+export interface SymptomProductMatchDTO {
+  id?: number | null;
+  symptomId?: number | null;
+  productId: number;
+  relevanceScore?: number | null;
+  matchReason?: string | null;
+  matchedSymptomIds?: number[] | null;
+}
+
+export interface SymptomProductMatchPayload {
+  productId: number;
+  relevanceScore?: number | null;
+  matchReason?: string | null;
+}
+
+// smart-features-service recommendations
+export type RecommendationType =
+  | "FREQUENTLY_BOUGHT_TOGETHER"
+  | "FOR_YOU"
+  | "SEASONAL"
+  | "SIMILAR_PRODUCT"
+  | "ALTERNATIVE";
+
+export type RecommendationStatus = "ACTIVE" | "EXPIRED" | "DISMISSED";
+
+export type RecommendationEventType =
+  | "VIEWED"
+  | "CLICKED"
+  | "ADDED_TO_CART"
+  | "PURCHASED"
+  | "DISMISSED"
+  | "RESERVATION_REQUESTED"
+  | "RESERVATION_CONFIRMED"
+  | "RESERVATION_FAILED"
+  | "RESERVATION_COMPENSATED";
+
+export type RecommendationReservationSagaStatus =
+  | "PENDING"
+  | "COMPLETED"
+  | "FAILED"
+  | "COMPENSATION_REQUESTED"
+  | "COMPENSATED";
+
+export interface RecommendationDTO {
+  id: number;
+  userId: number;
+  patientProfileId?: number | null;
+  productId: number;
+  recommendationType: RecommendationType;
+  score?: number | null;
+  reasonText?: string | null;
+  generatedAt?: JavaInstant | null;
+  expiresAt?: JavaInstant | null;
+  status: RecommendationStatus;
+}
+
+export interface RecommendationPayload {
+  userId: number;
+  patientProfileId?: number | null;
+  productId: number;
+  recommendationType: RecommendationType;
+  score?: number | null;
+  reasonText?: string | null;
+  expiresAt?: string | null;
+}
+
+export interface RecommendationGeneratePayload {
+  userId: number;
+  patientProfileId?: number | null;
+  recommendationType: RecommendationType;
+  seedProductId?: number | null;
+  symptomIds?: number[] | null;
+  limit?: number | null;
+  expiresAt?: string | null;
+}
+
+export interface RecommendationInteractionPayload {
+  interactionType: RecommendationEventType;
+}
+
+export interface RecommendationReservationPayload {
+  pharmacyId: number;
+  quantity: number;
+  expiresAt?: string | null;
+}
+
+export interface RecommendationEventDTO {
+  id: number;
+  recommendationId: number;
+  eventType: RecommendationEventType;
+  eventTime?: JavaInstant | null;
+}
+
+export interface RecommendationReservationSagaDTO {
+  id: number;
+  correlationId: string;
+  recommendationId: number;
+  userId: number;
+  patientProfileId?: number | null;
+  productId: number;
+  pharmacyId: number;
+  quantity: number;
+  reservationId?: number | null;
+  status: RecommendationReservationSagaStatus;
+  failureReason?: string | null;
+  createdAt?: JavaInstant | null;
+  updatedAt?: JavaInstant | null;
+}
+
+// smart-features-service fraud detection
+export type FraudDecision = "APPROVED" | "REVIEW" | "BLOCKED";
+
+export type FraudEventType = "TRIGGERED" | "REVIEWED" | "BLOCKED" | "CLEARED" | "SKIPPED";
+
+export type FraudRuleCode =
+  | "ORDER_HIGH_QUANTITY"
+  | "ORDER_VELOCITY"
+  | "PAYMENT_REPEATED_FAILURES"
+  | "USER_RESTRICTED_PRODUCT_FREQUENCY"
+  | "ACCOUNT_SHARED_CONTACT"
+  | "ACCOUNT_NEW_LARGE_ORDER"
+  | "ACCOUNT_SUSPICIOUS_ACCESS"
+  | "PRESCRIPTION_REJECTED_REPEAT"
+  | "PRESCRIPTION_REUSED"
+  | "PRESCRIPTION_MANY_USERS"
+  | "PRODUCT_CONTROLLED_QUANTITY"
+  | "PRODUCT_UNUSUAL_COMBINATION";
+
+export type FraudRuleCategory = "ORDER" | "ACCOUNT" | "PRESCRIPTION" | "PRODUCT";
+
+export interface FraudRuleDTO {
+  id: number;
+  ruleName: string;
+  ruleCode: FraudRuleCode;
+  category: FraudRuleCategory;
+  description?: string;
+  weight: number;
+  isActive: boolean;
+}
+
+export interface FraudRulePayload {
+  ruleName: string;
+  ruleCode: FraudRuleCode;
+  category: FraudRuleCategory;
+  description?: string;
+  weight: number;
+  isActive: boolean;
+}
+
+export interface FraudCheckDTO {
+  id: number;
+  userId: number;
+  orderId: number;
+  riskScore: number;
+  decision: FraudDecision;
+  checkedAt: string;
+}
+
+export interface FraudCheckPayload {
+  orderId: number;
+}
+
+export interface FraudLogDTO {
+  id: number;
+  fraudCheckId: number;
+  fraudRuleId: number;
+  eventType: FraudEventType;
+  details: string;
+  scoreContribution: number;
+  createdAt: string;
+}
+
+// smart-features-service notifications
+export type NotificationType =
+  | "THERAPY_REMINDER"
+  | "REFILL_ALERT"
+  | "RECALL_ALERT"
+  | "CHAT"
+  | "SYSTEM";
+
+export type NotificationChannel = "IN_APP" | "EMAIL" | "PUSH" | "SMS";
+
+export type NotificationStatus = "PENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
+
+export type NotificationTriggerSource =
+  | "THERAPY"
+  | "RECALL"
+  | "AUTO_REFILL"
+  | "CHATBOT"
+  | "FRAUD"
+  | "SYSTEM";
+
+export type TherapyReminderStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELED";
+
+export interface NotificationDTO {
+  id: number;
+  therapyReminderId?: number | null;
+  userId: number;
+  patientProfileId?: number | null;
+  type: NotificationType;
+  title: string;
+  message: string;
+  channel: NotificationChannel;
+  status: NotificationStatus;
+  createdAt?: JavaInstant | null;
+  sentAt?: JavaInstant | null;
+  readAt?: JavaInstant | null;
+}
+
+export interface NotificationTriggerDTO {
+  id: number;
+  notificationId: number;
+  triggerSource: NotificationTriggerSource;
+  sourceEntityId?: number | null;
+  triggeredAt?: JavaInstant | null;
+}
+
+export interface TherapyReminderDTO {
+  id: number;
+  patientProfileId: number;
+  productId: number;
+  dosageInstruction?: string | null;
+  frequencyPerDay: number;
+  startDate: string;
+  endDate?: string | null;
+  nextReminderAt?: JavaInstant | null;
+  status: TherapyReminderStatus;
+}
+
+// smart-features-service chatbot
+export type FaqCategory =
+  | "ACCOUNT"
+  | "ORDERS"
+  | "PRESCRIPTIONS"
+  | "PAYMENTS"
+  | "DELIVERY";
+
+export interface ChatbotAskPayload {
+  message: string;
+}
+
+export interface ChatbotAskResponse {
+  answer: string;
+  matchedQuestion?: string | null;
+  confidence?: number | null;
+  category?: FaqCategory | null;
+  fallback: boolean;
+}
+
+export interface FaqEntryDTO {
+  id: number;
+  question: string;
+  answer: string;
+  category: FaqCategory;
+  keywords?: string | null;
+  isActive: boolean;
+  updatedAt?: string;
+}
+
+export interface FaqEntryPayload {
+  question: string;
+  answer: string;
+  category: FaqCategory;
+  keywords?: string | null;
+  isActive: boolean;
+}
+
+export type ChatSessionType = "FAQ_BOT" | "PHARMACIST_CHAT";
+export type ChatSessionStatus = "OPEN" | "CLOSED" | "ESCALATED";
+export type ChatSenderType = "USER" | "BOT" | "PHARMACIST" | "SYSTEM";
+
+export interface ChatSessionDTO {
+  id: number;
+  userId: number;
+  patientProfileId?: number | null;
+  sessionType: ChatSessionType;
+  status: ChatSessionStatus;
+  startedAt: string;
+  endedAt?: string | null;
+}
+
+export interface ChatSessionPayload {
+  userId: number;
+  patientProfileId?: number | null;
+  sessionType: ChatSessionType;
+}
+
+export interface ChatMessageDTO {
+  id: number;
+  sessionId: number;
+  senderType: ChatSenderType;
+  senderId?: number | null;
+  messageText?: string | null;
+  attachmentUrl?: string | null;
+  createdAt: string;
+}
+
+export interface ChatMessagePayload {
+  senderType: ChatSenderType;
+  senderId?: number | null;
+  messageText?: string | null;
+  attachmentUrl?: string | null;
+}
+
+export interface ChatIntentMatchDTO {
+  id: number;
+  messageId: number;
+  faqId: number;
+  detectedIntent: string;
+  confidenceScore: number;
+}
 
 // Spring Data Page wrapper — every paginated GET returns this shape.
 export interface Page<T> {

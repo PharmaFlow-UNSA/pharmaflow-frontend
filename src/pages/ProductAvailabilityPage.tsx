@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { getInventoryForProduct, getPharmacies } from "@/api/pharmacies";
 import { getProductById } from "@/api/products";
@@ -32,13 +31,6 @@ export function ProductAvailabilityPage() {
 
   return (
     <div>
-      <Link
-        to="/products"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-brand-700 hover:underline"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to products
-      </Link>
-
       {product.isError && <ErrorMessage error={product.error} />}
       {product.isLoading && <p className="text-slate-500">Loading product…</p>}
 
