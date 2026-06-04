@@ -36,6 +36,7 @@ import { RegisterPage } from "@/pages/RegisterPage";
 import { ReservationsPage } from "@/pages/ReservationsPage";
 import { ReserveProductPage } from "@/pages/ReserveProductPage";
 import { SymptomsPage } from "@/pages/SymptomsPage";
+import { TherapyRemindersPage } from "@/pages/TherapyRemindersPage";
 import { TherapiesPage } from "@/pages/TherapiesPage";
 
 function RootPage() {
@@ -103,6 +104,7 @@ export function App() {
               {/* User & Health Service */}
               <Route path="health" element={<HealthPage />} />
               <Route path="health/allergies" element={<AllergiesPage />} />
+              <Route path="health/reminders" element={<TherapyRemindersPage />} />
               <Route path="health/therapies" element={<TherapiesPage />} />
               <Route path="health/family-members" element={<FamilyMembersPage />} />
 

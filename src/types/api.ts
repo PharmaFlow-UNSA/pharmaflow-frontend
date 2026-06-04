@@ -622,6 +622,7 @@ export interface NotificationTriggerDTO {
 
 export interface TherapyReminderDTO {
   id: number;
+  ownerUserId?: number | null;
   patientProfileId: number;
   productId: number;
   dosageInstruction?: string | null;
@@ -630,6 +631,19 @@ export interface TherapyReminderDTO {
   endDate?: string | null;
   nextReminderAt?: JavaInstant | null;
   status: TherapyReminderStatus;
+}
+
+export interface TherapyReminderPayload {
+  patientProfileId: number;
+  productId: number;
+  dosageInstruction?: string | null;
+  frequencyPerDay: number;
+  startDate: string;
+  endDate?: string | null;
+}
+
+export interface TherapyReminderStatusPayload {
+  status: Extract<TherapyReminderStatus, "ACTIVE" | "PAUSED">;
 }
 
 // smart-features-service chatbot
