@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -15,7 +15,10 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import { getCurrentUser } from "@/api/users";
-import type { Role } from "@/types/api";
+import { getProductById } from "@/api/products";
+import { getRecommendations } from "@/api/recommendations";
+import { RecommendationCard } from "@/components/recommendations/RecommendationCard";
+import type { ProductDTO, Role } from "@/types/api";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -111,12 +114,24 @@ const NAV_TILES: NavTile[] = [
 
 export function HomePage() {
   const { user } = useAuth();
+  const isPatient = Boolean(user?.roles.includes("ROLE_USER"));
 
   // Reuses the cached query from HealthPage — zero extra round-trip after
   // the user has visited any health sub-page.
   const { data: fullUser, isPending: statsLoading } = useQuery({
     queryKey: ["currentUser"],
     queryFn: getCurrentUser,
+    staleTime: 60_000,
+  });
+
+  const recommendationsQuery = useQuery({
+    queryKey: ["recommendations", "home", fullUser?.id, fullUser?.patientProfile?.id],
+    queryFn: () =>
+      getRecommendations({
+        userId: fullUser?.id,
+        patientProfileId: fullUser?.patientProfile?.id,
+      }),
+    enabled: Boolean(fullUser?.id) && isPatient,
     staleTime: 60_000,
   });
 
@@ -127,6 +142,20 @@ export function HomePage() {
   const allergyCount = fullUser?.patientProfile?.allergies?.length ?? 0;
   const therapyCount = fullUser?.patientProfile?.therapies?.length ?? 0;
   const familyCount  = fullUser?.familyMemberIds?.length ?? 0;
+  const activeRecommendations = (recommendationsQuery.data ?? [])
+    .filter((recommendation) => recommendation.status === "ACTIVE")
+    .slice(0, 3);
+  const previewProductQueries = useQueries({
+    queries: activeRecommendations.map((recommendation) => ({
+      queryKey: ["product", recommendation.productId],
+      queryFn: () => getProductById(recommendation.productId),
+      staleTime: 60_000,
+    })),
+  });
+  const previewProductsById = new Map<number, ProductDTO>();
+  previewProductQueries.forEach((query, index) => {
+    if (query.data) previewProductsById.set(activeRecommendations[index].productId, query.data);
+  });
 
   return (
     <div className="space-y-8">
@@ -160,6 +189,43 @@ export function HomePage() {
           )}
         </div>
       </div>
+
+      {isPatient && (
+        <div>
+          <div className="mb-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Recommended for you
+            </h2>
+          </div>
+
+          {recommendationsQuery.isLoading && (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[...Array(3)].map((_, index) => (
+                <div key={index} className="h-44 animate-pulse rounded-xl bg-slate-100" />
+              ))}
+            </div>
+          )}
+
+          {!recommendationsQuery.isLoading && activeRecommendations.length === 0 && (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-600">
+              No active product recommendations yet.
+            </div>
+          )}
+
+          {activeRecommendations.length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {activeRecommendations.map((recommendation) => (
+                <RecommendationCard
+                  key={recommendation.id}
+                  compact
+                  recommendation={recommendation}
+                  product={previewProductsById.get(recommendation.productId)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Health quick stats ──────────────────────────────────────────── */}
       <div>

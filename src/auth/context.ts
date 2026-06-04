@@ -3,6 +3,7 @@ import type { LoginPayload, RegisterPayload } from "@/api/auth";
 import type { Role } from "@/types/api";
 
 export interface AuthUser {
+  userId?: number;
   email: string;
   firstName?: string;
   lastName?: string;

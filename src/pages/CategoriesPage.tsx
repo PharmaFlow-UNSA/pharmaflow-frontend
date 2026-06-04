@@ -51,7 +51,9 @@ export function CategoriesPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Categories</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+          Categories
+        </h1>
         <p className="mt-1 text-slate-600">
           {query.data?.length ?? 0} product categories
         </p>
@@ -61,21 +63,37 @@ export function CategoriesPage() {
       {canWrite && (
         <form
           onSubmit={handleSubmit((values) => createMutation.mutate(values))}
-          className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4"
+          className="mb-6 flex flex-wrap items-start gap-3 rounded-lg border border-slate-200 bg-white p-4"
         >
           <div className="space-y-1.5">
             <Label htmlFor="catName">Category name *</Label>
-            <Input id="catName" className="w-52" placeholder="e.g. Antibiotics" {...register("name")} />
-            {errors.name && <p className="text-xs text-red-600">{errors.name.message}</p>}
+            <Input
+              id="catName"
+              className="w-52"
+              placeholder="e.g. Antibiotics"
+              {...register("name")}
+            />
+            {errors.name && (
+              <p className="text-xs text-red-600">{errors.name.message}</p>
+            )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 min-h-[72px]">
             <Label htmlFor="catDesc">Description</Label>
-            <Input id="catDesc" className="w-64" placeholder="Optional" {...register("description")} />
+            <Input
+              id="catDesc"
+              className="w-64"
+              placeholder="Optional"
+              {...register("description")}
+            />
           </div>
-          <Button type="submit" disabled={createMutation.isPending}>
-            {createMutation.isPending ? "Adding…" : "+ Add category"}
-          </Button>
-          {createMutation.isError && <ErrorMessage error={createMutation.error} className="w-full" />}
+          <div className="flex items-start pt-6 min-h-[72px]">
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? "Adding…" : "+ Add category"}
+            </Button>
+          </div>
+          {createMutation.isError && (
+            <ErrorMessage error={createMutation.error} className="w-full" />
+          )}
         </form>
       )}
 
@@ -87,20 +105,35 @@ export function CategoriesPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-600">ID</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-600">Name</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-600">Description</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">
+                  ID
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">
+                  Name
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">
+                  Description
+                </th>
                 {canDelete && (
-                  <th className="px-4 py-3 text-right font-medium text-slate-600">Actions</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-600">
+                    Actions
+                  </th>
                 )}
               </tr>
             </thead>
             <tbody>
               {query.data.map((c) => (
-                <tr key={c.id} className="border-b border-slate-100 last:border-0">
+                <tr
+                  key={c.id}
+                  className="border-b border-slate-100 last:border-0"
+                >
                   <td className="px-4 py-3 text-slate-400">{c.id}</td>
-                  <td className="px-4 py-3 font-medium text-slate-900">{c.name}</td>
-                  <td className="px-4 py-3 text-slate-500">{c.description ?? "—"}</td>
+                  <td className="px-4 py-3 font-medium text-slate-900">
+                    {c.name}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500">
+                    {c.description ?? "—"}
+                  </td>
                   {canDelete && (
                     <td className="px-4 py-3 text-right">
                       <button
