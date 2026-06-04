@@ -3,6 +3,8 @@ import type {
   NotificationDTO,
   NotificationTriggerDTO,
   TherapyReminderDTO,
+  TherapyReminderPayload,
+  TherapyReminderStatusPayload,
 } from "@/types/api";
 
 export async function getNotifications(userId?: number): Promise<NotificationDTO[]> {
@@ -35,5 +37,32 @@ export async function getTherapyReminders(
   const { data } = await api.get<TherapyReminderDTO[]>("/api/reminders", {
     params: patientProfileId ? { patientProfileId } : undefined,
   });
+  return data;
+}
+
+export async function createTherapyReminder(
+  payload: TherapyReminderPayload
+): Promise<TherapyReminderDTO> {
+  const { data } = await api.post<TherapyReminderDTO>("/api/reminders", payload);
+  return data;
+}
+
+export async function updateTherapyReminder(
+  id: number,
+  payload: TherapyReminderPayload
+): Promise<TherapyReminderDTO> {
+  const { data } = await api.put<TherapyReminderDTO>(`/api/reminders/${id}`, payload);
+  return data;
+}
+
+export async function deleteTherapyReminder(id: number): Promise<void> {
+  await api.delete(`/api/reminders/${id}`);
+}
+
+export async function updateTherapyReminderStatus(
+  id: number,
+  payload: TherapyReminderStatusPayload
+): Promise<TherapyReminderDTO> {
+  const { data } = await api.patch<TherapyReminderDTO>(`/api/reminders/${id}/status`, payload);
   return data;
 }

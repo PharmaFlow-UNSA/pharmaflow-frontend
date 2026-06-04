@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Mail, MapPin, Package, Phone } from "lucide-react";
+import { Building2, Mail, MapPin, Package, Phone } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { getInventoryForPharmacy, getPharmacyById } from "@/api/pharmacies";
 import { ErrorMessage } from "@/components/ErrorMessage";
@@ -25,13 +25,6 @@ export function PharmacyDetailPage() {
 
   return (
     <div>
-      <Link
-        to="/pharmacies"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-brand-700 hover:underline"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to pharmacies
-      </Link>
-
       {pharmacy.isError && <ErrorMessage error={pharmacy.error} />}
       {pharmacy.isLoading && <p className="text-slate-500">Loading pharmacy…</p>}
 

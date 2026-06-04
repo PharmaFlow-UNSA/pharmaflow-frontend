@@ -8,8 +8,14 @@ import axios, {
  * Single Axios instance pointed at the API Gateway (NOT the individual services).
  * VITE_GATEWAY_URL overrides the default for non-localhost setups.
  */
-export const GATEWAY_URL: string =
-  (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? "http://localhost:8080";
+const configuredGatewayUrl = (import.meta.env.VITE_GATEWAY_URL as string | undefined)?.trim();
+const isLocalPage = ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
+const shouldUseRelativeGateway =
+  !isLocalPage && configuredGatewayUrl?.startsWith("http://localhost");
+
+export const GATEWAY_URL: string = shouldUseRelativeGateway
+  ? ""
+  : configuredGatewayUrl || "http://localhost:8080";
 
 // ── localStorage helpers ─────────────────────────────────────────────────────
 

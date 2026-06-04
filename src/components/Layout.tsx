@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
+  AlarmClock,
   ArrowLeft,
   ChevronDown,
   ClipboardList,
@@ -44,11 +45,13 @@ const CARE_NAV: {
   label: string;
   adminLabel?: string;
   icon: ComponentType<{ className?: string }>;
+  end?: boolean;
 }[] = [
   { to: "/orders", label: "My orders", adminLabel: "All orders", icon: ReceiptText },
   { to: "/prescriptions", label: "Prescriptions", icon: FileText },
   { to: "/reservations", label: "Reservations", icon: ClipboardList },
-  { to: "/health", label: "Health", icon: HeartPulse },
+  { to: "/health/reminders", label: "Therapy reminders", icon: AlarmClock },
+  { to: "/health", label: "Health", icon: HeartPulse, end: true },
 ];
 
 export function Layout() {
@@ -141,7 +144,12 @@ export function Layout() {
                 </NavTab>
               ))}
               {careItems.map((item) => (
-                <NavTab key={item.to} to={item.to} onNavigate={() => setMenuOpen(false)}>
+                <NavTab
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  onNavigate={() => setMenuOpen(false)}
+                >
                   {item.label}
                 </NavTab>
               ))}
@@ -273,6 +281,7 @@ function NavDropdown({
     to: string;
     label: string;
     icon: ComponentType<{ className?: string }>;
+    end?: boolean;
   }>;
 }) {
   const [open, setOpen] = useState(false);
@@ -315,7 +324,7 @@ function NavDropdown({
         <div className="absolute left-0 top-10 z-40 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-900">{label}</h2>
-            <p className="text-xs text-slate-500">Orders, prescriptions, reservations, and health</p>
+            <p className="text-xs text-slate-500">Orders, prescriptions, reminders, and health</p>
           </div>
 
           <div className="py-1">
@@ -325,6 +334,7 @@ function NavDropdown({
                 <NavLink
                   key={item.to}
                   to={item.to}
+                  end={item.end}
                   onClick={() => setOpen(false)}
                   className={({ isActive }) =>
                     cn(

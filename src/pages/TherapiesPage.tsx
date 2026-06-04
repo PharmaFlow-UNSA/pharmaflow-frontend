@@ -1,19 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Pencil, Pill, Plus, Trash2 } from "lucide-react";
+import { AlarmClock, Pencil, Pill, Plus, Trash2 } from "lucide-react";
 import { getCurrentUser } from "@/api/users";
-import { getTherapies, updatePatientProfile } from "@/api/health";
+import { getFamilyMembersByUserId, getTherapies, updatePatientProfile } from "@/api/health";
+import { createTherapyReminder } from "@/api/notifications";
 import { ErrorMessage } from "@/components/ErrorMessage";
+import {
+  ReminderFormModal,
+  type ReminderFormDefaults,
+  type ReminderTargetOption,
+} from "@/components/reminders/ReminderFormModal";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
-import type { PatientProfileDTO, TherapyDTO } from "@/types/api";
+import type { PatientProfileDTO, TherapyDTO, TherapyReminderPayload } from "@/types/api";
 
 const therapySchema = z.object({
   medicationName: z
@@ -39,6 +44,8 @@ export function TherapiesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingTherapy, setEditingTherapy] = useState<TherapyDTO | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderDefaults, setReminderDefaults] = useState<ReminderFormDefaults | null>(null);
 
   // ── Current user (patient profile) ───────────────────────────────────
   const { data: user, isLoading, isError, error } = useQuery({
@@ -48,6 +55,29 @@ export function TherapiesPage() {
 
   const profile  = user?.patientProfile;
   const therapies = profile?.therapies ?? [];
+
+  const { data: familyMembers = [] } = useQuery({
+    queryKey: ["familyMembers", user?.id],
+    queryFn: () => getFamilyMembersByUserId(user!.id),
+    enabled: Boolean(user?.id),
+  });
+
+  const reminderTargets: ReminderTargetOption[] = [];
+  if (profile?.id) {
+    reminderTargets.push({
+      patientProfileId: profile.id,
+      label: "Me",
+      helper: user ? `${user.firstName} ${user.lastName}` : undefined,
+    });
+  }
+  for (const member of familyMembers) {
+    if (!member.patientProfile?.id) continue;
+    reminderTargets.push({
+      patientProfileId: member.patientProfile.id,
+      label: member.firstName,
+      helper: member.relationship.replaceAll("_", " ").toLowerCase(),
+    });
+  }
 
   // ── Global therapy catalogue — used for datalist autocomplete ─────────
   // Connects GET /api/therapies so the full system catalogue is accessible.
@@ -75,6 +105,16 @@ export function TherapiesPage() {
     },
   });
 
+  const addReminder = useMutation({
+    mutationFn: createTherapyReminder,
+    onSuccess: () => {
+      setShowReminderModal(false);
+      setReminderDefaults(null);
+      void queryClient.invalidateQueries({ queryKey: ["therapyReminders"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
   // ── Form ──────────────────────────────────────────────────────────────
   const form = useForm<TherapyForm>({
     resolver: zodResolver(therapySchema),
@@ -94,6 +134,22 @@ export function TherapiesPage() {
     });
     setEditingTherapy(t);
     setShowModal(true);
+  }
+
+  function openReminder(therapy: TherapyDTO) {
+    const dosageInstruction = [therapy.dosage, therapy.frequency].filter(Boolean).join(" · ");
+    setReminderDefaults({
+      targetProfileId: profile?.id,
+      productSearch: therapy.medicationName,
+      dosageInstruction,
+      frequencyPerDay: parseFrequencyPerDay(therapy.frequency),
+      startDate: new Date().toISOString().slice(0, 10),
+    });
+    setShowReminderModal(true);
+  }
+
+  function handleReminderSubmit(payload: TherapyReminderPayload) {
+    addReminder.mutate(payload);
   }
 
   function handleSubmit(values: TherapyForm) {
@@ -121,17 +177,9 @@ export function TherapiesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link to="/health">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-            Health
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Therapies</h1>
-          <p className="text-sm text-slate-500">Manage your active medications and treatments.</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">Therapies</h1>
+        <p className="text-sm text-slate-500">Manage your active medications and treatments.</p>
       </div>
 
       {isLoading && <div className="h-48 animate-pulse rounded-xl bg-slate-100" />}
@@ -179,6 +227,16 @@ export function TherapiesPage() {
                       </div>
                     </div>
                     <div className="ml-4 flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openReminder(therapy)}
+                        disabled={reminderTargets.length === 0}
+                        aria-label="Add reminder"
+                        title="Add reminder"
+                      >
+                        <AlarmClock className="h-3.5 w-3.5" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -310,6 +368,43 @@ export function TherapiesPage() {
           </div>
         </form>
       </Modal>
+
+      {showReminderModal && (
+        <ReminderFormModal
+          open={showReminderModal}
+          title="Add therapy reminder"
+          targets={reminderTargets}
+          defaults={reminderDefaults}
+          isPending={addReminder.isPending}
+          error={addReminder.error}
+          onClose={() => {
+            setShowReminderModal(false);
+            setReminderDefaults(null);
+            addReminder.reset();
+          }}
+          onSubmit={handleReminderSubmit}
+        />
+      )}
     </div>
   );
+}
+
+function parseFrequencyPerDay(value?: string): number {
+  if (!value) return 1;
+  const directNumber = Number(value);
+  if (Number.isInteger(directNumber) && directNumber >= 1 && directNumber <= 24) {
+    return directNumber;
+  }
+  const numericMatch = value.match(/\d+/);
+  if (numericMatch) {
+    const parsed = Number(numericMatch[0]);
+    if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 24) {
+      return parsed;
+    }
+  }
+  const normalized = value.toLowerCase();
+  if (normalized.includes("twice")) return 2;
+  if (normalized.includes("three")) return 3;
+  if (normalized.includes("four")) return 4;
+  return 1;
 }

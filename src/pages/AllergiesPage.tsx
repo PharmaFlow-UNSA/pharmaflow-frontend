@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { getCurrentUser } from "@/api/users";
 import { getAllergies, updatePatientProfile } from "@/api/health";
 import { ErrorMessage } from "@/components/ErrorMessage";
@@ -130,17 +129,9 @@ export function AllergiesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link to="/health">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-            Health
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Allergies</h1>
-          <p className="text-sm text-slate-500">Manage your allergy records.</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">Allergies</h1>
+        <p className="text-sm text-slate-500">Manage your allergy records.</p>
       </div>
 
       {isLoading && (

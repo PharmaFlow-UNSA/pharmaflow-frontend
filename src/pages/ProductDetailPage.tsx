@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, AlertTriangle, Pill } from "lucide-react";
+import { AlertTriangle, Pill } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   deleteProduct,
@@ -53,13 +53,6 @@ export function ProductDetailPage() {
 
   return (
     <div>
-      <Link
-        to="/products"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-brand-700 hover:underline"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to products
-      </Link>
-
       {product.isError && <ErrorMessage error={product.error} />}
       {product.isLoading && <p className="text-slate-500">Loading product…</p>}
 
