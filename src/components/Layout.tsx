@@ -20,13 +20,19 @@ import { useAuth } from "@/auth/useAuth";
 import { FaqChatBubble } from "@/components/FaqChatBubble";
 import { NotificationBell } from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
+import type { Role } from "@/types/api";
 
 // Top-level nav items — rendered as tabs on desktop and flattened into the
-// mobile dropdown.
-const PRIMARY_NAV: { to: string; label: string; end?: boolean }[] = [
+// mobile dropdown. `roles`, when present, restricts the link to those roles
+// (matching the route guard) so patients don't see links that bounce them.
+const PRIMARY_NAV: { to: string; label: string; end?: boolean; roles?: Role[] }[] = [
   { to: "/products", label: "Products" },
   { to: "/categories", label: "Categories" },
-  { to: "/interactions", label: "Interactions" },
+  {
+    to: "/interactions",
+    label: "Interactions",
+    roles: ["ROLE_DOCTOR", "ROLE_PHARMACIST", "ROLE_ADMIN"],
+  },
   { to: "/pharmacies", label: "Pharmacies" },
   { to: "/symptoms", label: "Symptoms" },
 ];
@@ -62,6 +68,10 @@ export function Layout() {
     navigate("/");
   };
 
+  const primaryItems = PRIMARY_NAV.filter(
+    (item) => !item.roles || item.roles.some((role) => hasRole(role))
+  );
+
   const careItems = CARE_NAV.map((item) => ({
     ...item,
     label: isAdmin && item.adminLabel ? item.adminLabel : item.label,
@@ -79,7 +89,7 @@ export function Layout() {
             {/* Desktop nav — the dropdown keeps the bar short, so it only needs
                 to collapse to the hamburger below xl. */}
             <nav className="hidden items-center gap-1 xl:flex">
-              {PRIMARY_NAV.map((item) => (
+              {primaryItems.map((item) => (
                 <NavTab key={item.to} to={item.to} end={item.end}>
                   {item.label}
                 </NavTab>
@@ -120,7 +130,7 @@ export function Layout() {
               <NavTab to="/" end onNavigate={() => setMenuOpen(false)}>
                 Home
               </NavTab>
-              {PRIMARY_NAV.map((item) => (
+              {primaryItems.map((item) => (
                 <NavTab
                   key={item.to}
                   to={item.to}
