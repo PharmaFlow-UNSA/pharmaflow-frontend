@@ -1,0 +1,33 @@
+# PharmaFlow frontend — DEV stack with live reload.
+#
+# Runs the Vite dev server (HMR) in a container with your source bind-mounted,
+# so saving a file on the host hot-reloads the browser — no rebuild needed.
+# Served on host port 3000 to match the gateway's CORS allow-list.
+#
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# Stop the production container first if it's running — both use port 3000.
+# For testing the real production artifact, use the plain `docker-compose.yml`.
+
+name: pharmaflow-frontend-dev
+
+services:
+  frontend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: pharmaflow/frontend-dev
+    container_name: pharmaflow-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      # Windows host bind mounts don't forward inotify FS events into the Linux
+      # container, so Vite must poll to notice file changes. Gated in vite.config.ts.
+      CHOKIDAR_USEPOLLING: "true"
+      VITE_GATEWAY_URL: ${VITE_GATEWAY_URL:-http://localhost:8080}
+    volumes:
+      # Bind-mount the project for live edits...
+      - .:/app
+      # ...but keep the container's own node_modules (anonymous volume shadows the host's).
+      - /app/node_modules
+    restart: unless-stopped

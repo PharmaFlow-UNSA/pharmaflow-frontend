@@ -114,7 +114,7 @@ export function HomePage() {
 
   // Reuses the cached query from HealthPage — zero extra round-trip after
   // the user has visited any health sub-page.
-  const { data: fullUser } = useQuery({
+  const { data: fullUser, isPending: statsLoading } = useQuery({
     queryKey: ["currentUser"],
     queryFn: getCurrentUser,
     staleTime: 60_000,
@@ -173,6 +173,7 @@ export function HomePage() {
             iconBg="bg-amber-50"
             count={allergyCount}
             label="Allergies"
+            loading={statsLoading}
           />
           <StatCard
             to="/health/therapies"
@@ -180,6 +181,7 @@ export function HomePage() {
             iconBg="bg-emerald-50"
             count={therapyCount}
             label="Active therapies"
+            loading={statsLoading}
           />
           <StatCard
             to="/health/family-members"
@@ -187,6 +189,7 @@ export function HomePage() {
             iconBg="bg-brand-50"
             count={familyCount}
             label="Family members"
+            loading={statsLoading}
           />
         </div>
       </div>
@@ -227,12 +230,14 @@ function StatCard({
   iconBg,
   count,
   label,
+  loading,
 }: {
   to: string;
   icon: React.ReactNode;
   iconBg: string;
   count: number;
   label: string;
+  loading?: boolean;
 }) {
   return (
     <Link
@@ -241,7 +246,11 @@ function StatCard({
     >
       <div className={`rounded-lg p-2.5 ${iconBg}`}>{icon}</div>
       <div>
-        <p className="text-2xl font-bold text-slate-900">{count}</p>
+        {loading ? (
+          <div className="mb-1.5 h-7 w-9 animate-pulse rounded-md bg-slate-200" />
+        ) : (
+          <p className="text-2xl font-bold text-slate-900">{count}</p>
+        )}
         <p className="text-xs text-slate-500">{label}</p>
       </div>
     </Link>

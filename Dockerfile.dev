@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1
+# Dev image: runs the Vite dev server with HMR instead of a baked nginx build.
+# Source is bind-mounted at runtime (see docker-compose.dev.yml), so edits on the
+# host hot-reload in the browser. node_modules stays inside the container via an
+# anonymous volume — the host's (Windows) modules must NOT shadow the alpine ones,
+# since esbuild/rollup ship platform-specific binaries.
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+EXPOSE 3000
+# Unlike the prod build, VITE_GATEWAY_URL is read at dev-server startup (runtime),
+# not baked — it's supplied via the compose `environment:` block.
+CMD ["npm", "run", "dev"]

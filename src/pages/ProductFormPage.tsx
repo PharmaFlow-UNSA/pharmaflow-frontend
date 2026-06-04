@@ -31,7 +31,11 @@ const schema = z.object({
   imageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
 });
 
-type FormValues = z.infer<typeof schema>;
+// `z.coerce` makes the schema's input type (pre-coercion) differ from its
+// output type, so useForm needs both generics: input for the field values /
+// resolver, output for the submitted values.
+type FormInput = z.input<typeof schema>;
+type FormValues = z.output<typeof schema>;
 
 export function ProductFormPage() {
   const { productId } = useParams();
@@ -56,7 +60,7 @@ export function ProductFormPage() {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<FormValues>({
+  } = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       productType: "MEDICATION",
