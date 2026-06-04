@@ -1,7 +1,9 @@
+import { useIsFetching, useIsMutating } from "@tanstack/react-query";
 import { Route, Routes } from "react-router-dom";
 import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { useAuth } from "@/auth/useAuth";
+import { Spinner } from "@/components/ui/Spinner";
 import { Layout } from "@/components/Layout";
 import { NotificationProvider } from "@/notifications/NotificationProvider";
 import { AdminFaqLogsPage } from "@/pages/AdminFaqLogsPage";
@@ -38,6 +40,18 @@ import { ReserveProductPage } from "@/pages/ReserveProductPage";
 import { SymptomsPage } from "@/pages/SymptomsPage";
 import { TherapiesPage } from "@/pages/TherapiesPage";
 
+function GlobalSpinner() {
+  const isFetching = useIsFetching();
+  const isMutating = useIsMutating();
+  const { loading: authLoading } = useAuth();
+  if (isFetching === 0 && isMutating === 0 && !authLoading) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm">
+      <Spinner className="h-10 w-10" />
+    </div>
+  );
+}
+
 function RootPage() {
   const { hasRole } = useAuth();
   return hasRole("ROLE_ADMIN") ? <AdminPage /> : <HomePage />;
@@ -47,6 +61,7 @@ export function App() {
   return (
     <AuthProvider>
       <NotificationProvider>
+        <GlobalSpinner />
         <Routes>
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />

@@ -30,8 +30,18 @@ const roleLabel: Record<Role, string> = {
 };
 
 const profileSchema = z.object({
-  firstName: z.string().min(2, "At least 2 characters").max(50),
-  lastName: z.string().min(2, "At least 2 characters").max(50),
+  firstName: z
+    .string()
+    .trim()
+    .min(2, "At least 2 characters")
+    .max(50, "Max 50 characters")
+    .regex(/^[\p{L}\s'-]+$/u, "Only letters, spaces, hyphens and apostrophes"),
+  lastName: z
+    .string()
+    .trim()
+    .min(2, "At least 2 characters")
+    .max(50, "Max 50 characters")
+    .regex(/^[\p{L}\s'-]+$/u, "Only letters, spaces, hyphens and apostrophes"),
 });
 type ProfileForm = z.infer<typeof profileSchema>;
 
@@ -61,6 +71,7 @@ export function ProfilePage() {
   // ── Profile edit form ──────────────────────────────────────────────────
   const profileForm = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
+    mode: "onChange",
     values: userData ? { firstName: userData.firstName, lastName: userData.lastName } : undefined,
   });
 
@@ -75,6 +86,7 @@ export function ProfilePage() {
   // ── Password change form ───────────────────────────────────────────────
   const passwordForm = useForm<PasswordForm>({
     resolver: zodResolver(passwordSchema),
+    mode: "onBlur",
   });
 
   const passwordMutation = useMutation({
@@ -189,6 +201,7 @@ export function ProfilePage() {
                   id="firstName"
                   {...profileForm.register("firstName")}
                   aria-invalid={!!profileForm.formState.errors.firstName}
+                  disabled={updateMutation.isPending}
                 />
                 {profileForm.formState.errors.firstName && (
                   <p className="text-xs text-red-500">
@@ -203,6 +216,7 @@ export function ProfilePage() {
                   id="lastName"
                   {...profileForm.register("lastName")}
                   aria-invalid={!!profileForm.formState.errors.lastName}
+                  disabled={updateMutation.isPending}
                 />
                 {profileForm.formState.errors.lastName && (
                   <p className="text-xs text-red-500">
@@ -261,6 +275,7 @@ export function ProfilePage() {
                 autoComplete="current-password"
                 {...passwordForm.register("currentPassword")}
                 aria-invalid={!!passwordForm.formState.errors.currentPassword}
+                disabled={passwordMutation.isPending}
               />
               {passwordForm.formState.errors.currentPassword && (
                 <p className="text-xs text-red-500">
@@ -277,6 +292,7 @@ export function ProfilePage() {
                 autoComplete="new-password"
                 {...passwordForm.register("newPassword")}
                 aria-invalid={!!passwordForm.formState.errors.newPassword}
+                disabled={passwordMutation.isPending}
               />
               {passwordForm.formState.errors.newPassword && (
                 <p className="text-xs text-red-500">
@@ -293,6 +309,7 @@ export function ProfilePage() {
                 autoComplete="new-password"
                 {...passwordForm.register("confirmPassword")}
                 aria-invalid={!!passwordForm.formState.errors.confirmPassword}
+                disabled={passwordMutation.isPending}
               />
               {passwordForm.formState.errors.confirmPassword && (
                 <p className="text-xs text-red-500">
