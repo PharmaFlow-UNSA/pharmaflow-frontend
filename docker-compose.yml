@@ -1,0 +1,25 @@
+# PharmaFlow frontend (separate from the backend stack).
+#
+# The SPA is served by nginx on host port 3000 — kept at 3000 to match the API
+# gateway's CORS allow-list. The browser calls the gateway directly at
+# VITE_GATEWAY_URL (default http://localhost:8080), so this container does not
+# need to share a network with the backend.
+#
+#   docker compose up -d --build
+#
+# Start the backend first (../pharmaflow-backend: docker compose up -d).
+
+name: pharmaflow-frontend
+
+services:
+  frontend:
+    build:
+      context: .
+      args:
+        VITE_GATEWAY_URL: ${VITE_GATEWAY_URL:-http://localhost:8080}
+    image: pharmaflow/frontend
+    container_name: pharmaflow-frontend
+    ports:
+      - "3000:80"
+    mem_limit: 128m
+    restart: unless-stopped
