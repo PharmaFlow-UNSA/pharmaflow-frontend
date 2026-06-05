@@ -184,7 +184,15 @@ export interface InventoryDTO {
   productId: number;
   quantity: number;
   reorderLevel?: number;
-  lastRestocked?: string;
+  lastRestocked?: JavaInstant;
+}
+
+export interface InventoryWritePayload {
+  productId: number;
+  quantity: number;
+  reorderLevel?: number;
+  lastRestocked?: string; // ISO date (yyyy-MM-dd) — backend LocalDate
+  pharmacyId: number;
 }
 
 export type ReservationStatus =

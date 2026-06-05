@@ -1,11 +1,17 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Calendar, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { getReservations } from "@/api/reservations";
+import { getReservations, patchReservationStatus } from "@/api/reservations";
 import { getCurrentUser } from "@/api/users";
 import { useAuth } from "@/auth/useAuth";
 import { ErrorMessage } from "@/components/ErrorMessage";
+import { useToast } from "@/components/ui/Toast";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -22,12 +28,45 @@ const STATUS_VARIANT: Record<ReservationStatus, "info" | "warning" | "success" |
   EXPIRED: "danger",
 };
 
+// Forward/cancel transitions a staff member can apply. Backend patches the
+// reservation via JSON Patch, so this just keeps the UI sensible.
+const RES_NEXT_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
+  PENDING: ["READY", "CANCELLED"],
+  READY: ["COMPLETED", "CANCELLED"],
+  COMPLETED: [],
+  CANCELLED: [],
+  EXPIRED: [],
+};
+
+const RES_ACTION: Record<
+  ReservationStatus,
+  { label: string; variant: "default" | "outline" | "destructive" }
+> = {
+  PENDING: { label: "Reopen", variant: "outline" },
+  READY: { label: "Mark ready for pickup", variant: "default" },
+  COMPLETED: { label: "Mark picked up", variant: "default" },
+  CANCELLED: { label: "Cancel", variant: "destructive" },
+  EXPIRED: { label: "Mark expired", variant: "outline" },
+};
+
 export function ReservationsPage() {
   const [searchParams] = useSearchParams();
   const justCreatedId = searchParams.get("just");
 
+  const queryClient = useQueryClient();
+  const toast = useToast();
   const { hasRole } = useAuth();
   const isStaff = hasRole("ROLE_PHARMACIST", "ROLE_ADMIN");
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: ReservationStatus }) =>
+      patchReservationStatus(id, status),
+    onSuccess: (_data, { id, status }) => {
+      queryClient.invalidateQueries({ queryKey: ["reservations"] });
+      toast.success(`Reservation #${id} marked ${status}.`);
+    },
+    onError: (err) => toast.error(err),
+  });
 
   const [scope, setScope] = useState<"mine" | "all">(isStaff ? "all" : "mine");
   const [statusFilter, setStatusFilter] = useState<ReservationStatus | "">("");
@@ -111,6 +150,7 @@ export function ReservationsPage() {
       </div>
 
       {query.isError && <ErrorMessage error={query.error} />}
+      {statusMutation.isError && <ErrorMessage error={statusMutation.error} className="mb-4" />}
       {query.isLoading && <p className="text-slate-500">Loading reservations…</p>}
 
       {query.data && query.data.content.length === 0 && (
@@ -147,6 +187,21 @@ export function ReservationsPage() {
                   Reserved {formatInstant(r.reservedAt)}
                   {r.expiresAt && ` · expires ${formatInstant(r.expiresAt)}`}
                 </p>
+                {isStaff && RES_NEXT_STATUSES[r.status].length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {RES_NEXT_STATUSES[r.status].map((next) => (
+                      <Button
+                        key={next}
+                        size="sm"
+                        variant={RES_ACTION[next].variant}
+                        disabled={statusMutation.isPending}
+                        onClick={() => statusMutation.mutate({ id: r.id, status: next })}
+                      >
+                        {RES_ACTION[next].label}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

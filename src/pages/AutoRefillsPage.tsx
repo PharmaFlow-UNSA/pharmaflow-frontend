@@ -11,6 +11,7 @@ import {
 } from "@/api/autoRefills";
 import { getCurrentUser } from "@/api/users";
 import { ErrorMessage } from "@/components/ErrorMessage";
+import { useToast } from "@/components/ui/Toast";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -40,6 +41,7 @@ type CreateForm = z.infer<typeof createSchema>;
 
 export function AutoRefillsPage() {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [createOpen, setCreateOpen] = useState(false);
 
   const { data: currentUser } = useQuery({
@@ -78,13 +80,19 @@ export function AutoRefillsPage() {
       queryClient.invalidateQueries({ queryKey: ["autoRefills"] });
       setCreateOpen(false);
       form.reset({ dosagePerDay: 1, tabletsPerPackage: 30 });
+      toast.success("Auto-refill subscription created.");
     },
+    onError: (err) => toast.error(err),
   });
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: AutoRefillStatus }) =>
       patchAutoRefillStatus(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["autoRefills"] }),
+    onSuccess: (_data, { id, status }) => {
+      queryClient.invalidateQueries({ queryKey: ["autoRefills"] });
+      toast.success(`Subscription #${id} ${AUTO_REFILL_STATUS_LABELS[status].toLowerCase()}.`);
+    },
+    onError: (err) => toast.error(err),
   });
 
   return (

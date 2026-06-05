@@ -12,6 +12,7 @@ import {
 import { getCurrentUser } from "@/api/users";
 import { useAuth } from "@/auth/useAuth";
 import { ErrorMessage } from "@/components/ErrorMessage";
+import { useToast } from "@/components/ui/Toast";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -51,6 +52,7 @@ export function PrescriptionsPage() {
   const isReviewer = hasRole("ROLE_DOCTOR", "ROLE_PHARMACIST", "ROLE_ADMIN");
 
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [statusFilter, setStatusFilter] = useState<PrescriptionStatus | "">("");
   const [page, setPage] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -92,7 +94,9 @@ export function PrescriptionsPage() {
       queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
       setUploadOpen(false);
       uploadForm.reset();
+      toast.success("Prescription uploaded — pending review.");
     },
+    onError: (err) => toast.error(err),
   });
 
   // ── Review form ────────────────────────────────────────────────────────
@@ -101,11 +105,15 @@ export function PrescriptionsPage() {
   const reviewMutation = useMutation({
     mutationFn: ({ id, values }: { id: number; values: ReviewForm }) =>
       reviewPrescription(id, values.status, values.reviewerNotes),
-    onSuccess: () => {
+    onSuccess: (_data, { id, values }) => {
       queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
       setReviewing(null);
       reviewForm.reset();
+      toast.success(
+        `Prescription #${id} ${values.status === "APPROVED" ? "approved" : "rejected"}.`
+      );
     },
+    onError: (err) => toast.error(err),
   });
 
   function openReview(rx: PrescriptionDTO, status: "APPROVED" | "REJECTED") {

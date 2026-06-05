@@ -10,6 +10,7 @@ import { getProductById } from "@/api/products";
 import { createReservation } from "@/api/reservations";
 import { getCurrentUser } from "@/api/users";
 import { ErrorMessage } from "@/components/ErrorMessage";
+import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -34,6 +35,7 @@ export function ReserveProductPage() {
   const [searchParams] = useSearchParams();
   const pharmacyIdParam = searchParams.get("pharmacyId");
   const navigate = useNavigate();
+  const toast = useToast();
   const [submitError, setSubmitError] = useState<unknown>(null);
 
   const productIdNumeric = Number(productIdParam);
@@ -99,9 +101,13 @@ export function ReserveProductPage() {
       });
     },
     onSuccess: (reservation) => {
+      toast.success(`Reservation #${reservation.id} created. Pickup expires in 24h.`);
       navigate(`/reservations?just=${reservation.id}`, { replace: true });
     },
-    onError: (err) => setSubmitError(err),
+    onError: (err) => {
+      setSubmitError(err);
+      toast.error(err);
+    },
   });
 
   const onSubmit = (values: FormValues) => {
