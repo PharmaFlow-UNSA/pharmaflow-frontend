@@ -9,6 +9,7 @@ import { getPrescriptions } from "@/api/prescriptions";
 import { getProductById } from "@/api/products";
 import { getCurrentUser } from "@/api/users";
 import { ErrorMessage } from "@/components/ErrorMessage";
+import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -32,6 +33,7 @@ export function OrderProductPage() {
   const { productId: productIdParam } = useParams();
   const productId = Number(productIdParam);
   const navigate = useNavigate();
+  const toast = useToast();
 
   const productQuery = useQuery({
     queryKey: ["product", productId],
@@ -97,8 +99,10 @@ export function OrderProductPage() {
       });
     },
     onSuccess: (order) => {
+      toast.success(`Order #${order.id} placed.`);
       navigate(`/orders/${order.id}`, { replace: true });
     },
+    onError: (err) => toast.error(err),
   });
 
   const requiresRx = productQuery.data?.requiresPrescription === true;

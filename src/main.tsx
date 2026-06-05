@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
+import { ToastProvider } from "@/components/ui/ToastProvider";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -26,9 +27,11 @@ if (!rootEl) throw new Error("Missing #root element in index.html");
 createRoot(rootEl).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ToastProvider>
     </QueryClientProvider>
   </StrictMode>
 );
