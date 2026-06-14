@@ -1,14 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, Pill } from "lucide-react";
+import { BriefcaseMedical, Eye, EyeOff, ShieldCheck, Stethoscope, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
+import { defaultPathForRoles } from "@/auth/defaultPath";
 import { useAuth } from "@/auth/useAuth";
+import { AuthPageLayout } from "@/components/AuthPageLayout";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { useToast } from "@/toast/useToast";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -18,14 +21,15 @@ const loginSchema = z.object({
 type LoginValues = z.infer<typeof loginSchema>;
 
 const SEED_ACCOUNTS = [
-  { email: "user@example.com",       role: "Patient" },
-  { email: "doctor@example.com",     role: "Doctor" },
-  { email: "pharmacist@example.com", role: "Pharmacist" },
-  { email: "admin@example.com",      role: "Admin" },
+  { email: "user@example.com", role: "Patient", icon: UserRound },
+  { email: "doctor@example.com", role: "Doctor", icon: Stethoscope },
+  { email: "pharmacist@example.com", role: "Pharmacist", icon: BriefcaseMedical },
+  { email: "admin@example.com", role: "Admin", icon: ShieldCheck },
 ];
 
 export function LoginPage() {
   const { login, loading } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [submitError, setSubmitError] = useState<unknown>(null);
@@ -45,31 +49,37 @@ export function LoginPage() {
   const onSubmit = async (values: LoginValues) => {
     setSubmitError(null);
     try {
-      await login(values);
-      navigate(from, { replace: true });
+      const authUser = await login(values);
+      toast.success("Signed in successfully.");
+      navigate(from === "/" ? defaultPathForRoles(authUser.roles) : from, { replace: true });
     } catch (err) {
       setSubmitError(err);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Logo / brand */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
-            <Pill className="h-6 w-6" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Welcome back
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">Sign in to your PharmaFlow account</p>
+    <AuthPageLayout
+      eyebrow="Secure sign in"
+      title="Welcome back to your PharmaFlow workspace"
+      description="Continue shopping, managing orders, reviewing care workflows, or opening your professional dashboard from one connected account."
+    >
+      <div className="mx-auto w-full max-w-[32rem]">
+        <div className="mb-5 lg:hidden">
+          <p className="inline-flex rounded-full bg-brand-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand-800">
+            Secure sign in
+          </p>
+          <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-800">Welcome back</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Sign in to your PharmaFlow account.</p>
         </div>
 
-        {/* Card */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="rounded-[2rem] border border-slate-200 bg-white/95 p-6 shadow-2xl shadow-slate-900/10 backdrop-blur sm:p-8">
+          <div className="mb-6 hidden lg:block">
+            <p className="text-sm font-bold uppercase tracking-wider text-brand-700">Account access</p>
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-ink-800">Sign in</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Use your account to continue where you left off.</p>
+          </div>
+
           <form className="space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
-            {/* Email */}
             <div className="space-y-1.5">
               <Label htmlFor="email">Email address</Label>
               <Input
@@ -81,12 +91,9 @@ export function LoginPage() {
                 {...register("email")}
                 aria-invalid={!!errors.email}
               />
-              {errors.email && (
-                <p className="text-xs text-red-600">{errors.email.message}</p>
-              )}
+              {errors.email && <p className="text-xs text-red-600">{errors.email.message}</p>}
             </div>
 
-            {/* Password with show/hide */}
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -95,66 +102,68 @@ export function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className="pr-10"
+                  className="pr-11"
                   {...register("password")}
                   aria-invalid={!!errors.password}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400 transition-colors hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   tabIndex={-1}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {errors.password && (
-                <p className="text-xs text-red-600">{errors.password.message}</p>
-              )}
+              {errors.password && <p className="text-xs text-red-600">{errors.password.message}</p>}
             </div>
 
             <ErrorMessage error={submitError} />
 
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            <Button type="submit" className="h-12 w-full rounded-2xl text-base font-bold" size="lg" disabled={loading}>
               {loading ? "Signing in…" : "Sign in"}
             </Button>
           </form>
 
-          {/* Seed accounts */}
-          <div className="mt-6 border-t border-slate-100 pt-5">
-            <p className="mb-2.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+          <div className="mt-7 border-t border-slate-100 pt-5">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
               Demo accounts &mdash; password: <code className="font-mono normal-case">password123</code>
             </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {SEED_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  onClick={() => {
-                    setValue("email", acc.email, { shouldValidate: true });
-                    setValue("password", "password123", { shouldValidate: true });
-                  }}
-                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left transition-colors hover:border-brand-200 hover:bg-brand-50"
-                >
-                  <span className="text-xs font-medium text-slate-700">{acc.role}</span>
-                </button>
-              ))}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {SEED_ACCOUNTS.map((account) => {
+                const Icon = account.icon;
+                return (
+                  <button
+                    key={account.email}
+                    type="button"
+                    onClick={() => {
+                      setValue("email", account.email, { shouldValidate: true });
+                      setValue("password", "password123", { shouldValidate: true });
+                    }}
+                    className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-3 text-left transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:bg-brand-50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 motion-reduce:hover:translate-y-0"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-700 ring-1 ring-slate-200 transition-colors group-hover:ring-brand-200">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-extrabold text-ink-800">{account.role}</span>
+                      <span className="block truncate text-xs text-slate-500">{account.email}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        <p className="mt-6 text-center text-sm text-slate-500">
+        <p className="mt-6 text-center text-sm text-slate-600">
           Don't have an account?{" "}
-          <Link to="/register" className="font-medium text-brand-700 hover:underline">
+          <Link to="/register" className="font-bold text-brand-700 hover:underline">
             Create one
           </Link>
         </p>
       </div>
-    </div>
+    </AuthPageLayout>
   );
 }

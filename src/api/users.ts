@@ -1,5 +1,17 @@
 import { api } from "./client";
-import type { UserDTO, UpdateUserPayload } from "@/types/api";
+import type { Page, UserDTO, UpdateUserPayload } from "@/types/api";
+
+export interface UserQuery {
+  page?: number;
+  size?: number;
+  sort?: string;
+  emailDomain?: string;
+}
+
+export async function getUsers(params: UserQuery = {}): Promise<Page<UserDTO>> {
+  const { data } = await api.get<Page<UserDTO>>("/api/users", { params });
+  return data;
+}
 
 export async function getUserById(id: number): Promise<UserDTO> {
   const { data } = await api.get<UserDTO>(`/api/users/${id}`);

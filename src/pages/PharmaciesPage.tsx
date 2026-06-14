@@ -1,13 +1,13 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Building2, Mail, MapPin, Phone } from "lucide-react";
+import { Building2, Clock, Mail, MapPin, Phone, Search } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { getPharmacies, type PharmacyQuery } from "@/api/pharmacies";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { getPharmacyImage } from "@/lib/catalog";
 
 export function PharmaciesPage() {
   const [page, setPage] = useState(0);
@@ -26,34 +26,54 @@ export function PharmaciesPage() {
     setPage(0);
   };
 
+  const clearFilters = () => {
+    setDraft({});
+    setFilters({});
+    setPage(0);
+  };
+
   return (
-    <div>
-      <h1 className="mb-2 text-2xl font-semibold text-slate-900">Pharmacies</h1>
-      <p className="mb-6 text-slate-600">
-        Catalogue from{" "}
-        <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm">
-          pharmacy-inventory-service
-        </code>
-        . Click any pharmacy to see its inventory.
-      </p>
+    <div className="space-y-8 animate-section">
+      <section className="relative overflow-hidden rounded-[2rem] border border-brand-100 bg-[radial-gradient(circle_at_85%_20%,rgba(14,165,233,0.18),transparent_26%),linear-gradient(135deg,#f0fdf4_0%,#ffffff_55%,#eaf8ff_100%)] p-7 shadow-sm lg:p-8">
+        <div className="absolute -right-8 -top-10 h-40 w-40 rounded-full bg-brand-200/30 blur-2xl" />
+        <div className="relative max-w-3xl">
+          <p className="inline-flex items-center rounded-full bg-white/80 px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand-700 ring-1 ring-brand-100">
+            Pharmacy directory
+          </p>
+          <h1 className="mt-4 flex items-center gap-3 text-4xl font-extrabold tracking-tight text-ink-800">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-brand-700 shadow-sm ring-1 ring-brand-100">
+              <Building2 className="h-6 w-6" />
+            </span>
+            Pharmacies
+          </h1>
+          <p className="mt-3 max-w-2xl leading-7 text-slate-600">
+            Browse partner pharmacies, opening hours, contact information, and available inventory.
+          </p>
+        </div>
+      </section>
 
       <form
         onSubmit={applyFilters}
-        className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-4"
+        className="grid grid-cols-1 gap-4 rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-[1.3fr_1fr_auto] sm:items-end lg:p-6"
       >
-        <div className="space-y-1.5 sm:col-span-2">
+        <div className="space-y-1.5">
           <Label htmlFor="filterName">Name contains</Label>
-          <Input
-            id="filterName"
-            placeholder="e.g. Centar"
-            value={draft.name ?? ""}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value || undefined })}
-          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <Input
+              id="filterName"
+              className="rounded-xl pl-9 shadow-sm"
+              placeholder="e.g. Centar"
+              value={draft.name ?? ""}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value || undefined })}
+            />
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="filterCity">City</Label>
           <Input
             id="filterCity"
+            className="rounded-xl shadow-sm"
             placeholder="e.g. Sarajevo"
             value={draft.city ?? ""}
             onChange={(e) => setDraft({ ...draft, city: e.target.value || undefined })}
@@ -61,64 +81,71 @@ export function PharmaciesPage() {
         </div>
         <div className="flex items-end gap-2">
           <Button type="submit">Apply</Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setDraft({});
-              setFilters({});
-              setPage(0);
-            }}
-          >
-            Reset
-          </Button>
+          <Button type="button" variant="outline" onClick={clearFilters}>Reset</Button>
         </div>
       </form>
 
       {query.isError && <ErrorMessage error={query.error} />}
-      {query.isLoading && <p className="text-slate-500">Loading pharmacies…</p>}
+      {query.isLoading && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, index) => (
+            <div key={index} className="h-96 rounded-[1.75rem] skeleton-shimmer" />
+          ))}
+        </div>
+      )}
 
       {query.data && query.data.content.length === 0 && (
-        <p className="text-slate-600">No pharmacies match these filters.</p>
+        <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
+          <Building2 className="mx-auto h-10 w-10 text-slate-400" />
+          <p className="mt-4 font-extrabold text-ink-800">No pharmacies match these filters</p>
+          <p className="mt-2 text-sm text-slate-500">Try a different name or city.</p>
+          <Button type="button" className="mt-6 rounded-xl" variant="outline" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        </div>
       )}
 
       {query.data && query.data.content.length > 0 && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {query.data.content.map((p) => (
-              <Link key={p.id} to={`/pharmacies/${p.id}`} className="group block">
-                <Card className="h-full transition-colors group-hover:border-brand-200">
-                  <CardHeader>
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-violet-50 p-2 text-violet-700">
-                        <Building2 className="h-5 w-5" />
-                      </div>
-                      <CardTitle className="text-base group-hover:text-brand-700">
-                        {p.name}
-                      </CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-1.5 text-sm">
-                    <p className="flex items-center gap-1.5 text-slate-700">
-                      <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                      {p.address}, {p.city}
-                    </p>
-                    <p className="flex items-center gap-1.5 text-slate-600">
-                      <Phone className="h-3.5 w-3.5 text-slate-400" />
-                      {p.phoneNumber}
-                    </p>
-                    <p className="flex items-center gap-1.5 text-slate-600">
-                      <Mail className="h-3.5 w-3.5 text-slate-400" />
-                      {p.email}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-500">Hours: {p.openingHours}</p>
-                  </CardContent>
-                </Card>
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {query.data.content.map((pharmacy) => (
+              <Link
+                key={pharmacy.id}
+                to={`/pharmacies/${pharmacy.id}`}
+                className="group overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm hover-lift hover:border-brand-200 hover:shadow-lg"
+              >
+                <img
+                  src={getPharmacyImage(pharmacy.imageUrl)}
+                  alt={pharmacy.name}
+                  className="aspect-[16/10] w-full object-cover"
+                  loading="lazy"
+                />
+                <div className="space-y-3 p-5">
+                  <h2 className="text-xl font-extrabold text-ink-800 group-hover:text-brand-700">
+                    {pharmacy.name}
+                  </h2>
+                  <p className="flex items-start gap-2 text-sm leading-6 text-slate-700">
+                    <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                    {pharmacy.address}, {pharmacy.city}
+                  </p>
+                  <p className="flex items-center gap-2 text-sm text-slate-600">
+                    <Phone className="h-3.5 w-3.5 text-slate-400" />
+                    {pharmacy.phoneNumber}
+                  </p>
+                  <p className="flex items-center gap-2 text-sm text-slate-600">
+                    <Mail className="h-3.5 w-3.5 text-slate-400" />
+                    {pharmacy.email}
+                  </p>
+                  <p className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                    <Clock className="h-3.5 w-3.5 text-slate-400" />
+                    {pharmacy.openingHours}
+                  </p>
+                </div>
               </Link>
             ))}
           </div>
 
-          <div className="mt-8 flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between text-sm">
             <p className="text-slate-600">
               Page {query.data.number + 1} of {Math.max(1, query.data.totalPages)} ·{" "}
               {query.data.totalElements} pharmac{query.data.totalElements === 1 ? "y" : "ies"}

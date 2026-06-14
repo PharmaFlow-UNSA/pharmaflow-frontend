@@ -12,6 +12,7 @@ import {
   markNotificationRead,
 } from "@/api/notifications";
 import { useAuth } from "@/auth/useAuth";
+import { showApiErrorToast } from "@/lib/errors";
 import { isUnreadNotification } from "@/notifications/notificationMeta";
 import type { NotificationDTO } from "@/types/api";
 import { NotificationCtx, type BrowserPermissionState } from "./context";
@@ -35,6 +36,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     useState<BrowserPermissionState>(() => getBrowserPermission());
   const seenNotificationIds = useRef<Set<number>>(new Set());
   const hasLoadedForUser = useRef(false);
+  const passiveFailureCount = useRef(0);
 
   const showBrowserNotification = useCallback(
     (notification: NotificationDTO) => {
@@ -52,7 +54,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     [browserPermission, navigate]
   );
 
-  const refreshNotifications = useCallback(async () => {
+  const refreshNotifications = useCallback(async (options?: { notifyOnError?: boolean }) => {
     if (!userId) {
       setNotifications([]);
       seenNotificationIds.current.clear();
@@ -64,6 +66,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     try {
       const nextNotifications = await getNotifications(userId);
       setError(null);
+      passiveFailureCount.current = 0;
 
       const newlySeen = nextNotifications.filter(
         (notification) =>
@@ -81,16 +84,26 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setNotifications(nextNotifications);
     } catch (refreshError) {
       setError(refreshError);
+      if (options?.notifyOnError) {
+        showApiErrorToast(refreshError, "Could not load notifications. Please try again.");
+      } else {
+        passiveFailureCount.current += 1;
+      }
     } finally {
       setLoading(false);
     }
   }, [showBrowserNotification, userId]);
 
   const markAsRead = useCallback(async (id: number) => {
-    const updated = await markNotificationRead(id);
-    setNotifications((current) =>
-      current.map((notification) => (notification.id === id ? updated : notification))
-    );
+    try {
+      const updated = await markNotificationRead(id);
+      setNotifications((current) =>
+        current.map((notification) => (notification.id === id ? updated : notification))
+      );
+    } catch (markError) {
+      showApiErrorToast(markError, "Could not update notification. Please try again.");
+      throw markError;
+    }
   }, []);
 
   const requestBrowserPermission =

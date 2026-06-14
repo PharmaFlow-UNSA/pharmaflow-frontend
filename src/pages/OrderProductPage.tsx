@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, AlertTriangle } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { AlertTriangle, PackageCheck, ShieldCheck } from "lucide-react";
+import { useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { createOrder } from "@/api/orders";
@@ -14,11 +14,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select } from "@/components/ui/Select";
+import { useToast } from "@/toast/useToast";
 
 const orderFormSchema = z.object({
   quantity: z.number().int().min(1, "Quantity must be at least 1").max(99),
   shippingAddress: z.string().min(5, "Enter a delivery address").max(255),
-  paymentMethod: z.enum(["CARD", "CASH", "TRANSFER"]),
   prescriptionId: z.number().int().positive().optional(),
 });
 type OrderForm = z.infer<typeof orderFormSchema>;
@@ -32,6 +32,7 @@ export function OrderProductPage() {
   const { productId: productIdParam } = useParams();
   const productId = Number(productIdParam);
   const navigate = useNavigate();
+  const toast = useToast();
 
   const productQuery = useQuery({
     queryKey: ["product", productId],
@@ -64,11 +65,11 @@ export function OrderProductPage() {
     defaultValues: {
       quantity: 1,
       shippingAddress: "",
-      paymentMethod: "CARD",
     },
   });
 
-  const quantity = form.watch("quantity") || 0;
+  const watchedQuantity = useWatch({ control: form.control, name: "quantity" });
+  const quantity = watchedQuantity || 0;
   const unitPrice = productQuery.data?.price ?? 0;
   const total = quantity * unitPrice;
 
@@ -91,12 +92,13 @@ export function OrderProductPage() {
         ],
         payment: {
           amount: values.quantity * productQuery.data.price,
-          method: values.paymentMethod,
+          method: "CASH",
           status: "PENDING",
         },
       });
     },
     onSuccess: (order) => {
+      toast.success(`Order #${order.id} was placed.`);
       navigate(`/orders/${order.id}`, { replace: true });
     },
   });
@@ -106,43 +108,38 @@ export function OrderProductPage() {
   const noApprovedRx = requiresRx && approvedRxList.length === 0;
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <Link
-        to="/products"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-brand-700 hover:underline"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to products
-      </Link>
+    <div className="space-y-8 animate-section">
+      <section className="overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_82%_18%,rgba(34,197,94,0.22),transparent_24%),linear-gradient(135deg,#0f172a_0%,#172554_64%,#0f766e_100%)] p-7 text-white shadow-lg shadow-slate-900/10 lg:p-9">
+        <p className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand-100 ring-1 ring-white/15">
+          Checkout
+        </p>
+        <h1 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
+          Review and place your order
+        </h1>
+        <p className="mt-3 max-w-2xl leading-7 text-slate-200">
+          Confirm product details, prescription requirements, pickup payment, and shipping address.
+        </p>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Place an order</CardTitle>
-          <CardDescription>
-            Creates an order via{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
-              POST /api/orders
-            </code>{" "}
-            with an item, payment, and shipping address.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {productQuery.isError && <ErrorMessage error={productQuery.error} />}
-          {productQuery.isLoading && <p className="text-slate-500">Loading product…</p>}
+      {productQuery.isError && <ErrorMessage error={productQuery.error} />}
+      {productQuery.isLoading && (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_26rem]">
+          <div className="h-96 skeleton-shimmer rounded-[1.75rem]" />
+          <div className="h-72 skeleton-shimmer rounded-[1.75rem]" />
+        </div>
+      )}
 
-          {productQuery.data && (
-            <>
-              <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-                <p className="font-medium text-slate-900">{productQuery.data.name}</p>
-                <p className="text-slate-600">
-                  {productQuery.data.price.toFixed(2)} KM ·{" "}
-                  {productQuery.data.manufacturer ?? "—"}
-                  {requiresRx ? " · Rx required" : ""}
-                </p>
-              </div>
-
+      {productQuery.data && (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start">
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/70">
+              <CardTitle>Order details</CardTitle>
+              <CardDescription>Complete the required fields to create the order.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
               {noApprovedRx && (
-                <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <AlertTriangle className="mt-0.5 h-4 w-4" />
+                <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div>
                     This product requires an approved prescription. You don't have one yet.{" "}
                     <Link to="/prescriptions" className="font-medium underline">
@@ -154,11 +151,11 @@ export function OrderProductPage() {
               )}
 
               <form
-                className="space-y-4"
+                className="space-y-5"
                 onSubmit={form.handleSubmit((v) => mutation.mutate(v))}
                 noValidate
               >
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="quantity">Quantity</Label>
                     <Input
@@ -176,11 +173,12 @@ export function OrderProductPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="paymentMethod">Payment method</Label>
-                    <Select id="paymentMethod" {...form.register("paymentMethod")}>
-                      <option value="CARD">Card</option>
-                      <option value="CASH">Cash on delivery</option>
-                      <option value="TRANSFER">Bank transfer</option>
-                    </Select>
+                    <div
+                      id="paymentMethod"
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700"
+                    >
+                      Payment on pickup
+                    </div>
                   </div>
                 </div>
 
@@ -206,46 +204,85 @@ export function OrderProductPage() {
                       {...form.register("prescriptionId", { valueAsNumber: true })}
                       defaultValue=""
                     >
-                      <option value="">Select a prescription…</option>
+                      <option value="">Select a prescription...</option>
                       {approvedRxList.map((rx) => (
                         <option key={rx.id} value={rx.id}>
-                          #{rx.id} — uploaded {rx.uploadedAt ? String(rx.uploadedAt).slice(0, 10) : "?"}
+                          #{rx.id} - uploaded {rx.uploadedAt ? String(rx.uploadedAt).slice(0, 10) : "?"}
                         </option>
                       ))}
                     </Select>
                   </div>
                 )}
 
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-600">Estimated total</span>
-                    <span className="text-lg font-semibold text-slate-900">
-                      {total.toFixed(2)} KM
-                    </span>
-                  </div>
-                </div>
-
                 <ErrorMessage error={mutation.error} />
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-3 pt-1">
                   <Button
                     type="submit"
                     disabled={mutation.isPending || (requiresRx && noApprovedRx)}
                   >
-                    {mutation.isPending ? "Placing order…" : "Place order"}
+                    {mutation.isPending ? "Placing order..." : "Place order"}
                   </Button>
                   <Link
                     to="/products"
-                    className="text-sm text-slate-600 hover:text-slate-900 hover:underline"
+                    className="text-sm font-medium text-slate-600 hover:text-slate-900 hover:underline"
                   >
                     Cancel
                   </Link>
                 </div>
               </form>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+
+          <aside className="lg:sticky lg:top-24">
+            <Card className="overflow-hidden">
+              <CardHeader className="border-b border-slate-100 bg-brand-50/70">
+                <CardTitle>Order summary</CardTitle>
+                <CardDescription>Single-product checkout</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5 pt-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="font-semibold text-slate-900">{productQuery.data.name}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {productQuery.data.manufacturer ?? "Manufacturer not set"}
+                    {requiresRx ? " · Rx required" : ""}
+                  </p>
+                  <div className="mt-4 flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Unit price</span>
+                    <span className="font-semibold text-slate-900">
+                      {productQuery.data.price.toFixed(2)} KM
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Quantity</span>
+                    <span className="font-semibold text-slate-900">{quantity || 0}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-2xl bg-slate-900 px-4 py-4 text-white">
+                  <span className="text-sm text-slate-200">Estimated total</span>
+                  <span className="text-2xl font-extrabold">{total.toFixed(2)} KM</span>
+                </div>
+
+                <div className="grid gap-3 text-sm text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <PackageCheck className="h-4 w-4 text-brand-600" />
+                    Order uses the existing PharmaFlow order flow.
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <PackageCheck className="h-4 w-4 text-brand-600" />
+                    Payment is collected when the order is picked up.
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-brand-600" />
+                    Prescription requirements stay visible before submission.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

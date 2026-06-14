@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select } from "@/components/ui/Select";
+import { useToast } from "@/toast/useToast";
 import type { BloodType, PatientProfileDTO, Severity } from "@/types/api";
 import {
   BLOOD_TYPE_LABELS,
@@ -62,6 +63,7 @@ type ProfileForm = z.infer<typeof profileSchema>;
 export function HealthPage() {
   const queryClient = useQueryClient();
   const [editingProfile, setEditingProfile] = useState(false);
+  const toast = useToast();
 
   const { data: user, isLoading, isError, error } = useQuery({
     queryKey: ["currentUser"],
@@ -108,6 +110,7 @@ export function HealthPage() {
         prev ? { ...prev, patientProfile: savedProfile } : prev
       );
       setEditingProfile(false);
+      toast.success("Health profile saved.");
     },
   });
 
@@ -126,13 +129,18 @@ export function HealthPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Health</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Your personal health profile, allergies, therapies, and family members.
+    <div className="space-y-7 animate-section">
+      <section className="rounded-[2rem] bg-[radial-gradient(circle_at_85%_15%,rgba(14,165,233,0.18),transparent_24%),linear-gradient(135deg,#ecfeff_0%,#f0fdf4_55%,#ffffff_100%)] p-7 shadow-sm ring-1 ring-brand-100/80 lg:p-8">
+        <p className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand-700 ring-1 ring-brand-100">
+          My Care
         </p>
-      </div>
+        <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-ink-800 sm:text-4xl">
+          Health profile
+        </h1>
+        <p className="mt-3 max-w-2xl leading-7 text-slate-600">
+          Review your personal health profile, allergies, therapies, and family member records.
+        </p>
+      </section>
 
       {/* ── Stats row ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -329,7 +337,7 @@ export function HealthPage() {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm hover-lift">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
       <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
     </div>
@@ -359,7 +367,7 @@ function SectionSummaryCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
+    <Card className="hover-lift">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">

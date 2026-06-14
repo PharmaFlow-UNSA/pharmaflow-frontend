@@ -2,12 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit3, Plus, Trash2, X } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { createFaqEntry, deleteFaqEntry, getFaqEntriesPage, updateFaqEntry } from "@/api/faqs";
+import { AdminPageHeader } from "@/components/admin/AdminShell";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { useToast } from "@/toast/useToast";
 import type { FaqCategory, FaqEntryDTO, FaqEntryPayload } from "@/types/api";
 
 const FAQ_CATEGORIES: FaqCategory[] = ["ORDERS", "PRESCRIPTIONS", "DELIVERY", "PAYMENTS", "ACCOUNT"];
@@ -37,6 +39,7 @@ interface FaqFormValues {
 }
 
 export function AdminFaqsPage() {
+  const toast = useToast();
   const [editingFaq, setEditingFaq] = useState<FaqEntryDTO | null>(null);
   const [formValues, setFormValues] = useState<FaqFormValues>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
@@ -56,13 +59,17 @@ export function AdminFaqsPage() {
       editingFaq ? updateFaqEntry(editingFaq.id, payload) : createFaqEntry(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["faqs"] });
+      toast.success(editingFaq ? "FAQ updated." : "FAQ created.");
       resetForm();
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteFaqEntry,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["faqs"] }),
+    onSuccess: () => {
+      toast.success("FAQ deleted.");
+      queryClient.invalidateQueries({ queryKey: ["faqs"] });
+    },
   });
 
   const filteredFaqs = useMemo(() => {
@@ -115,12 +122,17 @@ export function AdminFaqsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">FAQ management</h1>
-        <p className="mt-1 text-slate-600">
-          Create and maintain the support answers used by the FAQ page and assistant.
-        </p>
-      </div>
+      <AdminPageHeader
+        icon={Edit3}
+        eyebrow="Content operations"
+        title="FAQ management"
+        description="Create and maintain the support answers used by the FAQ page and assistant."
+        stats={[
+          { label: "Total FAQs", value: faqsQuery.isLoading ? "..." : faqsQuery.data?.totalElements ?? 0 },
+          { label: "Visible on page", value: filteredFaqs.filter((faq) => faq.isActive).length },
+          { label: "Current page", value: faqsQuery.data ? faqsQuery.data.number + 1 : "..." },
+        ]}
+      />
 
       {(faqsQuery.isError || saveMutation.isError || deleteMutation.isError) && (
         <ErrorMessage error={faqsQuery.error ?? saveMutation.error ?? deleteMutation.error} />

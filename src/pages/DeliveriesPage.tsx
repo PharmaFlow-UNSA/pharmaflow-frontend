@@ -3,6 +3,7 @@ import { Truck } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { getDeliveries } from "@/api/deliveries";
+import { AdminPageHeader, EmptyState } from "@/components/admin/AdminShell";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -14,11 +15,11 @@ import { formatInstant } from "@/lib/utils";
 import { DELIVERY_STATUS_LABELS, type DeliveryStatus } from "@/types/api";
 
 const STATUS_VARIANT: Record<DeliveryStatus, "info" | "warning" | "success" | "danger"> = {
-  PENDING: "warning",
-  DISPATCHED: "info",
+  PREPARING: "warning",
   IN_TRANSIT: "info",
   DELIVERED: "success",
   FAILED: "danger",
+  RETURNED: "warning",
 };
 
 export function DeliveriesPage() {
@@ -40,21 +41,25 @@ export function DeliveriesPage() {
       }),
     placeholderData: keepPreviousData,
   });
+  const deliveries = query.data?.content ?? [];
+  const inTransitCount = deliveries.filter((delivery) => delivery.status === "IN_TRANSIT").length;
+  const deliveredCount = deliveries.filter((delivery) => delivery.status === "DELIVERED").length;
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">Deliveries</h1>
-        <p className="mt-1 text-slate-600">
-          Shipments dispatched from partner pharmacies via{" "}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm">
-            pharmacy-inventory-service
-          </code>
-          .
-        </p>
-      </div>
+    <div className="space-y-7 animate-section">
+      <AdminPageHeader
+        eyebrow="Fulfillment operations"
+        title="Deliveries"
+        description="Monitor shipments dispatched from partner pharmacies and review order fulfillment status."
+        icon={Truck}
+        stats={[
+          { label: "Visible deliveries", value: query.data?.totalElements ?? "..." },
+          { label: "In transit here", value: inTransitCount },
+          { label: "Delivered here", value: deliveredCount },
+        ]}
+      />
 
-      <div className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="status">Status</Label>
           <Select
@@ -74,7 +79,7 @@ export function DeliveriesPage() {
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="orderId">Filter by order ID</Label>
+          <Label htmlFor="orderId">Filter by order number</Label>
           <Input
             id="orderId"
             type="number"
@@ -90,16 +95,26 @@ export function DeliveriesPage() {
       </div>
 
       {query.isError && <ErrorMessage error={query.error} />}
-      {query.isLoading && <p className="text-slate-500">Loading deliveries…</p>}
+      {query.isLoading && (
+        <div className="grid gap-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="h-28 rounded-[1.75rem] skeleton-shimmer" />
+          ))}
+        </div>
+      )}
 
       {query.data && query.data.content.length === 0 && (
-        <p className="text-slate-600">No deliveries match these filters.</p>
+        <EmptyState
+          title="No deliveries match these filters"
+          description="Try a different status or order number."
+          icon={Truck}
+        />
       )}
 
       {query.data && query.data.content.length > 0 && (
         <div className="space-y-3">
           {query.data.content.map((d) => (
-            <Card key={d.id}>
+            <Card key={d.id} className="rounded-[1.75rem] hover-lift">
               <CardHeader className="flex-row items-start justify-between space-y-0">
                 <div className="flex items-start gap-3">
                   <div className="rounded-lg bg-cyan-50 p-2 text-cyan-700">

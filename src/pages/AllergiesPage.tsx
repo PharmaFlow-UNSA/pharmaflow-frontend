@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, Trash2 } from "lucide-react";
 import { getCurrentUser } from "@/api/users";
 import { getAllergies, updatePatientProfile } from "@/api/health";
 import { ErrorMessage } from "@/components/ErrorMessage";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
+import { useToast } from "@/toast/useToast";
 import type { AllergyDTO, PatientProfileDTO, Severity } from "@/types/api";
 import { SEVERITY_LABELS } from "@/types/api";
 
@@ -47,6 +48,7 @@ export function AllergiesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingAllergy, setEditingAllergy] = useState<AllergyDTO | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const toast = useToast();
 
   // ── Current user (patient profile) ───────────────────────────────────
   const { data: user, isLoading, isError, error } = useQuery({
@@ -80,6 +82,7 @@ export function AllergiesPage() {
       setShowModal(false);
       setEditingAllergy(null);
       setDeleteConfirmId(null);
+      toast.success("Allergy records updated.");
     },
   });
 
@@ -128,11 +131,23 @@ export function AllergiesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Allergies</h1>
-        <p className="text-sm text-slate-500">Manage your allergy records.</p>
-      </div>
+    <div className="space-y-7 animate-section">
+      <section className="flex flex-col gap-5 rounded-[2rem] bg-[radial-gradient(circle_at_90%_15%,rgba(34,197,94,0.18),transparent_24%),linear-gradient(135deg,#0f172a_0%,#172554_70%,#0f766e_100%)] p-7 text-white shadow-lg shadow-slate-900/10 sm:flex-row sm:items-center sm:justify-between lg:p-8">
+        <div className="flex items-start gap-4">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-brand-100 ring-1 ring-white/15">
+            <AlertTriangle className="h-6 w-6" />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-100">My Care</p>
+            <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Allergies</h1>
+            <p className="mt-2 max-w-2xl leading-7 text-slate-200">Manage your allergy records.</p>
+          </div>
+        </div>
+        <Button size="sm" onClick={openAdd} className="bg-white text-brand-700 hover:bg-brand-50">
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Add allergy
+        </Button>
+      </section>
 
       {isLoading && (
         <div className="h-48 animate-pulse rounded-xl bg-slate-100" />
@@ -142,22 +157,16 @@ export function AllergiesPage() {
       {!isLoading && !isError && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>
-                Allergy records
-                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                  {allergies.length}
-                </span>
-              </CardTitle>
-              <Button size="sm" onClick={openAdd}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Add allergy
-              </Button>
-            </div>
+            <CardTitle>
+              Allergy records
+              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                {allergies.length}
+              </span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {allergies.length === 0 ? (
-              <div className="rounded-lg border-2 border-dashed border-slate-200 py-12 text-center">
+              <div className="rounded-[1.5rem] border-2 border-dashed border-slate-200 bg-slate-50/70 py-12 text-center">
                 <p className="text-sm text-slate-400">No allergies recorded yet.</p>
                 <Button size="sm" className="mt-3" onClick={openAdd}>
                   Add your first allergy

@@ -23,6 +23,7 @@ import {
   getFraudRules,
   updateFraudRule,
 } from "@/api/fraud";
+import { AdminPageHeader } from "@/components/admin/AdminShell";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -30,6 +31,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/toast/useToast";
 import type {
   FraudCheckDTO,
   FraudDecision,
@@ -88,9 +90,9 @@ const eventVariant: Record<FraudEventType, "default" | "outline" | "success" | "
 
 const checkSchema = z.object({
   orderId: z
-    .number({ error: "Order id is required" })
-    .int("Order id must be a whole number")
-    .positive("Order id must be positive"),
+    .number({ error: "Order number is required" })
+    .int("Order number must be a whole number")
+    .positive("Order number must be positive"),
 });
 
 const ruleSchema = z
@@ -115,8 +117,8 @@ type RuleFormValues = z.infer<typeof ruleSchema>;
 
 export function FraudPage() {
   const [tab, setTab] = useState<FraudTab>("checks");
-  const [filters, setFilters] = useState<{ userId?: number; orderId?: number }>({});
-  const [draftFilters, setDraftFilters] = useState({ userId: "", orderId: "" });
+  const [filters, setFilters] = useState<{ orderId?: number }>({});
+  const [draftFilters, setDraftFilters] = useState({ orderId: "" });
   const [filterError, setFilterError] = useState<string | null>(null);
   const [selectedCheckId, setSelectedCheckId] = useState<number | null>(null);
   const [editingRule, setEditingRule] = useState<FraudRuleDTO | null>(null);
@@ -151,36 +153,34 @@ export function FraudPage() {
 
   const applyFilters = (event: React.FormEvent) => {
     event.preventDefault();
-    const userId = draftFilters.userId ? Number(draftFilters.userId) : undefined;
     const orderId = draftFilters.orderId ? Number(draftFilters.orderId) : undefined;
-    if (
-      (userId !== undefined && (!Number.isInteger(userId) || userId <= 0)) ||
-      (orderId !== undefined && (!Number.isInteger(orderId) || orderId <= 0))
-    ) {
-      setFilterError("Filter ids must be positive whole numbers.");
+    if (orderId !== undefined && (!Number.isInteger(orderId) || orderId <= 0)) {
+      setFilterError("Enter a valid order number.");
       return;
     }
     setFilterError(null);
-    setFilters({
-      userId,
-      orderId,
-    });
+    setFilters({ orderId });
   };
 
   const resetFilters = () => {
-    setDraftFilters({ userId: "", orderId: "" });
+    setDraftFilters({ orderId: "" });
     setFilterError(null);
     setFilters({});
   };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Fraud detection</h1>
-        <p className="mt-1 text-slate-600">
-          Run order checks, manage evaluator rules, and inspect smart-features audit logs.
-        </p>
-      </div>
+      <AdminPageHeader
+        icon={ShieldAlert}
+        eyebrow="Risk operations"
+        title="Fraud detection"
+        description="Run order checks, manage evaluator rules, and inspect smart-features audit logs."
+        stats={[
+          { label: "Checks", value: checksQuery.isLoading ? "..." : checks.length },
+          { label: "Rules", value: rulesQuery.isLoading ? "..." : rulesQuery.data?.length ?? 0 },
+          { label: "Needs review", value: checks.filter((check) => check.decision === "REVIEW").length },
+        ]}
+      />
 
       <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-2">
         <TabButton active={tab === "checks"} onClick={() => setTab("checks")} icon={ClipboardCheck}>
@@ -201,25 +201,13 @@ export function FraudPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Filter checks</CardTitle>
-                <CardDescription>Filter by backend-supported user or order id.</CardDescription>
+                <CardDescription>Filter the queue by order number.</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={applyFilters} className="space-y-3">
                   {filterError && <p className="text-sm text-red-700">{filterError}</p>}
                   <div className="space-y-1.5">
-                    <Label htmlFor="fraudUserId">User id</Label>
-                    <Input
-                      id="fraudUserId"
-                      type="number"
-                      min="1"
-                      value={draftFilters.userId}
-                      onChange={(event) =>
-                        setDraftFilters((current) => ({ ...current, userId: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="fraudOrderId">Order id</Label>
+                    <Label htmlFor="fraudOrderId">Order number</Label>
                     <Input
                       id="fraudOrderId"
                       type="number"
@@ -297,6 +285,7 @@ export function FraudPage() {
 
 function RunCheckCard() {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [createdCheck, setCreatedCheck] = useState<FraudCheckDTO | null>(null);
   const form = useForm<CheckFormValues>({
     resolver: zodResolver(checkSchema),
@@ -307,6 +296,7 @@ function RunCheckCard() {
     onSuccess: (check) => {
       setCreatedCheck(check);
       form.reset();
+      toast.success(`Fraud check #${check.id} was created.`, "Check complete");
       void queryClient.invalidateQueries({ queryKey: ["fraud-checks"] });
     },
   });
@@ -315,7 +305,7 @@ function RunCheckCard() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Run fraud check</CardTitle>
-        <CardDescription>Submit an order id to evaluate active backend rules.</CardDescription>
+        <CardDescription>Submit an order number to review risk signals.</CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -324,7 +314,7 @@ function RunCheckCard() {
         >
           {mutation.isError && <ErrorMessage error={mutation.error} />}
           <div className="space-y-1.5">
-            <Label htmlFor="runOrderId">Order id</Label>
+            <Label htmlFor="runOrderId">Order number</Label>
             <Input
               id="runOrderId"
               type="number"
@@ -363,6 +353,7 @@ function RuleFormCard({
   onCancel: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const defaultCode = "ORDER_HIGH_QUANTITY";
   const form = useForm<RuleFormValues>({
     resolver: zodResolver(ruleSchema),
@@ -389,6 +380,7 @@ function RuleFormCard({
         weight: 20,
         isActive: true,
       });
+      toast.success(editingRule ? "Fraud rule updated." : "Fraud rule created.");
       onSaved();
     },
   });
@@ -425,7 +417,7 @@ function RuleFormCard({
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle className="text-base">{editingRule ? "Edit rule" : "Create rule"}</CardTitle>
-          <CardDescription>Rule code and category must match backend evaluator support.</CardDescription>
+          <CardDescription>Choose a supported rule type and category.</CardDescription>
         </div>
         {editingRule && (
           <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
@@ -546,7 +538,6 @@ function ChecksTable({
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2 font-medium">Check</th>
-                  {!compact && <th className="px-3 py-2 font-medium">User</th>}
                   <th className="px-3 py-2 font-medium">Order</th>
                   <th className="px-3 py-2 font-medium">Risk</th>
                   <th className="px-3 py-2 font-medium">Decision</th>
@@ -564,7 +555,6 @@ function ChecksTable({
                     onClick={() => onSelect(check)}
                   >
                     <td className="px-3 py-2 font-medium text-slate-900">#{check.id}</td>
-                    {!compact && <td className="px-3 py-2 text-slate-600">#{check.userId}</td>}
                     <td className="px-3 py-2 text-slate-600">#{check.orderId}</td>
                     <td className="px-3 py-2 text-slate-900">{Number(check.riskScore).toFixed(1)}</td>
                     <td className="px-3 py-2">
@@ -596,9 +586,11 @@ function RulesTable({
   onEdit: (rule: FraudRuleDTO) => void;
 }) {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const deleteMutation = useMutation({
     mutationFn: deleteFraudRule,
     onSuccess: () => {
+      toast.success("Fraud rule deleted.");
       void queryClient.invalidateQueries({ queryKey: ["fraud-rules"] });
     },
   });
@@ -613,7 +605,7 @@ function RulesTable({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Rules</CardTitle>
-        <CardDescription>Admin-only evaluator configuration from smart-features-service.</CardDescription>
+        <CardDescription>Manage the rules used for order risk review.</CardDescription>
       </CardHeader>
       <CardContent>
         {(error || deleteMutation.isError) && <ErrorMessage error={error ?? deleteMutation.error} />}

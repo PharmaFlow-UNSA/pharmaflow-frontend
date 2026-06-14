@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Pharmacy product">
+  <rect width="640" height="480" fill="#f1f5f9"/>
+  <rect x="120" y="116" width="400" height="248" rx="28" fill="#ffffff" stroke="#cbd5e1" stroke-width="4"/>
+  <rect x="190" y="176" width="260" height="128" rx="18" fill="#0ea5a4" opacity=".14"/>
+  <path d="M320 190v100M270 240h100" stroke="#0f766e" stroke-width="28" stroke-linecap="round"/>
+  <text x="320" y="402" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#334155">PharmaFlow</text>
+</svg>

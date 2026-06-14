@@ -1,11 +1,28 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
+import { CartProvider } from "./cart/CartContext";
+import { friendlyErrorMessage } from "./lib/errors";
+import { ToastProvider } from "./toast/ToastProvider";
+import { notify } from "./toast/toastBus";
 import "./index.css";
 
 const queryClient = new QueryClient({
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      const fallback =
+        typeof mutation.options.meta?.errorMessage === "string"
+          ? mutation.options.meta.errorMessage
+          : "Could not complete that action. Please try again.";
+      notify({
+        variant: "error",
+        title: "Action failed",
+        description: friendlyErrorMessage(error, fallback),
+      });
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: (failureCount, error) => {
@@ -17,6 +34,9 @@ const queryClient = new QueryClient({
       staleTime: 30_000,
       refetchOnWindowFocus: false,
     },
+    mutations: {
+      retry: false,
+    },
   },
 });
 
@@ -27,7 +47,11 @@ createRoot(rootEl).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <App />
+        <ToastProvider>
+          <CartProvider>
+            <App />
+          </CartProvider>
+        </ToastProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>

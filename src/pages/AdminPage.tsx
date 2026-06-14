@@ -1,11 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, FileQuestion, MessageSquareText, PackageSearch, ShieldCheck, Sparkles, UserCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  ClipboardList,
+  FileQuestion,
+  FileText,
+  HeartPulse,
+  MessageSquareText,
+  PackageSearch,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { getFraudChecks, getFraudRules } from "@/api/fraud";
+import { getOrders } from "@/api/orders";
+import { getPharmacies } from "@/api/pharmacies";
+import { getPrescriptions } from "@/api/prescriptions";
+import { getDrugInteractions, getProducts } from "@/api/products";
+import { getReservations } from "@/api/reservations";
+import { AdminPageHeader, AdminQuickLink, EmptyState, StatCard } from "@/components/admin/AdminShell";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
-import type { FraudDecision } from "@/types/api";
+import { formatInstant } from "@/lib/utils";
+import type { FraudDecision, OrderDTO, PrescriptionDTO, ReservationDTO } from "@/types/api";
 
 const decisionVariant: Record<FraudDecision, "success" | "warning" | "danger"> = {
   APPROVED: "success",
@@ -14,11 +32,34 @@ const decisionVariant: Record<FraudDecision, "success" | "warning" | "danger"> =
 };
 
 export function AdminPage() {
+  const ordersQuery = useQuery({
+    queryKey: ["orders", "admin-dashboard"],
+    queryFn: () => getOrders({ page: 0, size: 6, sort: "createdAt,desc" }),
+  });
+  const prescriptionsQuery = useQuery({
+    queryKey: ["prescriptions", "admin-dashboard", "pending"],
+    queryFn: () => getPrescriptions({ page: 0, size: 6, status: "PENDING", sort: "uploadedAt,desc" }),
+  });
+  const reservationsQuery = useQuery({
+    queryKey: ["reservations", "admin-dashboard", "pending"],
+    queryFn: () => getReservations({ page: 0, size: 6, status: "PENDING", sort: "reservedAt,desc" }),
+  });
+  const productsQuery = useQuery({
+    queryKey: ["products", "admin-dashboard"],
+    queryFn: () => getProducts({ page: 0, size: 1 }),
+  });
+  const pharmaciesQuery = useQuery({
+    queryKey: ["pharmacies", "admin-dashboard"],
+    queryFn: () => getPharmacies({ page: 0, size: 1 }),
+  });
+  const interactionsQuery = useQuery({
+    queryKey: ["drug-interactions", "admin-dashboard"],
+    queryFn: getDrugInteractions,
+  });
   const checksQuery = useQuery({
     queryKey: ["fraud-checks", "admin-summary"],
     queryFn: () => getFraudChecks(),
   });
-
   const rulesQuery = useQuery({
     queryKey: ["fraud-rules"],
     queryFn: getFraudRules,
@@ -29,185 +70,242 @@ export function AdminPage() {
   const reviewCount = checks.filter((check) => check.decision === "REVIEW").length;
   const blockedCount = checks.filter((check) => check.decision === "BLOCKED").length;
   const activeRules = rules.filter((rule) => rule.isActive).length;
-  const highestRisk = checks.reduce((max, check) => Math.max(max, Number(check.riskScore ?? 0)), 0);
+  const pendingPrescriptions = prescriptionsQuery.data?.totalElements ?? 0;
+  const pendingReservations = reservationsQuery.data?.totalElements ?? 0;
+  const recentOrders = ordersQuery.data?.content ?? [];
   const recentChecks = checks.slice(0, 5);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Admin dashboard</h1>
-          <p className="mt-1 text-slate-600">
-            Monitor pharmacy operations, order risk, and smart feature controls.
-          </p>
-        </div>
-        <Link
-          to="/admin/fraud"
-          className="inline-flex h-10 w-full items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 sm:w-auto"
-        >
+    <div className="space-y-7">
+      <AdminPageHeader
+        icon={ShieldCheck}
+        title="Admin dashboard"
+        description="Review catalog activity, care queues, and risk alerts."
+        action={
+          <Link
+            to="/admin/fraud"
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-extrabold text-ink-800 shadow-sm transition-colors hover:bg-cyan-50"
+          >
             <ShieldCheck className="mr-2 h-4 w-4" />
             Open fraud workspace
-        </Link>
-      </div>
+          </Link>
+        }
+        stats={[
+          { label: "Pending prescriptions", value: prescriptionsQuery.isLoading ? "..." : pendingPrescriptions },
+          { label: "Pending reservations", value: reservationsQuery.isLoading ? "..." : pendingReservations },
+          { label: "Products", value: productsQuery.isLoading ? "..." : productsQuery.data?.totalElements ?? "No data" },
+          { label: "Pharmacies", value: pharmaciesQuery.isLoading ? "..." : pharmaciesQuery.data?.totalElements ?? "No data" },
+        ]}
+      />
 
-      {(checksQuery.isError || rulesQuery.isError) && (
-        <ErrorMessage error={checksQuery.error ?? rulesQuery.error} />
-      )}
-
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <MetricCard label="Total checks" value={checks.length} loading={checksQuery.isLoading} />
-        <MetricCard label="Needs review" value={reviewCount} loading={checksQuery.isLoading} tone="warning" />
-        <MetricCard label="Blocked" value={blockedCount} loading={checksQuery.isLoading} tone="danger" />
-        <MetricCard label="Active rules" value={activeRules} loading={rulesQuery.isLoading} />
-        <MetricCard
-          label="Highest risk"
-          value={checks.length > 0 ? highestRisk.toFixed(1) : "No data"}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Needs fraud review"
+          value={reviewCount}
           loading={checksQuery.isLoading}
-          tone={highestRisk >= 70 ? "danger" : highestRisk >= 30 ? "warning" : "default"}
+          tone="warning"
+          icon={AlertTriangle}
+        />
+        <StatCard
+          label="Blocked checks"
+          value={blockedCount}
+          loading={checksQuery.isLoading}
+          tone="danger"
+          icon={ShieldCheck}
+        />
+        <StatCard
+          label="Active fraud rules"
+          value={activeRules}
+          loading={rulesQuery.isLoading}
+          tone="info"
+          icon={ClipboardList}
+        />
+        <StatCard
+          label="Interaction alerts"
+          value={interactionsQuery.data?.length ?? 0}
+          loading={interactionsQuery.isLoading}
+          tone="warning"
+          icon={HeartPulse}
         />
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+      {(ordersQuery.isError ||
+        prescriptionsQuery.isError ||
+        reservationsQuery.isError ||
+        productsQuery.isError ||
+        pharmaciesQuery.isError ||
+        interactionsQuery.isError ||
+        checksQuery.isError ||
+        rulesQuery.isError) && (
+        <ErrorMessage
+          error={
+            ordersQuery.error ??
+            prescriptionsQuery.error ??
+            reservationsQuery.error ??
+            productsQuery.error ??
+            pharmaciesQuery.error ??
+            interactionsQuery.error ??
+            checksQuery.error ??
+            rulesQuery.error
+          }
+        />
+      )}
+
+      <section className="grid gap-5 xl:grid-cols-[1.3fr_1fr]">
+        <OperationalCard
+          title="Recent orders"
+          description="Latest order activity across accounts."
+          actionLabel="View orders"
+          actionTo="/orders"
+          loading={ordersQuery.isLoading}
+          emptyTitle="No orders yet"
+        >
+          {recentOrders.map((order) => (
+            <OrderRow key={order.id} order={order} />
+          ))}
+        </OperationalCard>
+
+        <OperationalCard
+          title="Pending prescriptions"
+          description="Uploaded prescriptions waiting for review."
+          actionLabel="Review prescriptions"
+          actionTo="/prescriptions"
+          loading={prescriptionsQuery.isLoading}
+          emptyTitle="No pending prescriptions"
+        >
+          {(prescriptionsQuery.data?.content ?? []).map((prescription) => (
+            <PrescriptionRow key={prescription.id} prescription={prescription} />
+          ))}
+        </OperationalCard>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+        <OperationalCard
+          title="Pending reservations"
+          description="Pickup reservations waiting for attention."
+          actionLabel="Open reservations"
+          actionTo="/reservations"
+          loading={reservationsQuery.isLoading}
+          emptyTitle="No pending reservations"
+        >
+          {(reservationsQuery.data?.content ?? []).map((reservation) => (
+            <ReservationRow key={reservation.id} reservation={reservation} />
+          ))}
+        </OperationalCard>
+
         <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle>Recent fraud checks</CardTitle>
-              <CardDescription>Latest smart-features-service fraud decisions.</CardDescription>
-            </div>
-            <Link
-              to="/admin/fraud"
-              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-100"
-            >
-              Review
-            </Link>
+          <CardHeader>
+            <CardTitle>Fraud and interaction alerts</CardTitle>
+            <CardDescription>Recent risk checks and interaction details.</CardDescription>
           </CardHeader>
-          <CardContent>
-            {checksQuery.isLoading && <p className="text-sm text-slate-500">Loading fraud checks...</p>}
+          <CardContent className="space-y-3">
+            {checksQuery.isLoading && <p className="text-sm text-slate-500">Loading risk checks...</p>}
             {!checksQuery.isLoading && recentChecks.length === 0 && (
-              <p className="text-sm text-slate-600">
-                No fraud checks have been recorded yet. Run a check from the fraud workspace.
-              </p>
+              <EmptyState title="No fraud checks yet" description="Run an order check when a review is needed." />
             )}
-            {recentChecks.length > 0 && (
-              <div className="overflow-hidden rounded-md border border-slate-200">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">Check</th>
-                      <th className="px-3 py-2 font-medium">Order</th>
-                      <th className="px-3 py-2 font-medium">Risk</th>
-                      <th className="px-3 py-2 font-medium">Decision</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white">
-                    {recentChecks.map((check) => (
-                      <tr key={check.id}>
-                        <td className="px-3 py-2 font-medium text-slate-900">#{check.id}</td>
-                        <td className="px-3 py-2 text-slate-600">#{check.orderId}</td>
-                        <td className="px-3 py-2 text-slate-900">{Number(check.riskScore).toFixed(1)}</td>
-                        <td className="px-3 py-2">
-                          <Badge variant={decisionVariant[check.decision]}>{check.decision}</Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {recentChecks.map((check) => (
+              <div key={check.id} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
+                <div>
+                  <p className="font-semibold text-ink-800">Check #{check.id}</p>
+                  <p className="text-sm text-slate-500">Order #{check.orderId} · risk {Number(check.riskScore).toFixed(1)}</p>
+                </div>
+                <Badge variant={decisionVariant[check.decision]}>{check.decision}</Badge>
               </div>
-            )}
+            ))}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              {interactionsQuery.isLoading
+                ? "Loading interaction details..."
+                : `${interactionsQuery.data?.length ?? 0} interaction detail${interactionsQuery.data?.length === 1 ? "" : "s"} available for review.`}
+            </div>
           </CardContent>
         </Card>
+      </section>
 
-        <div className="space-y-4">
-          <AdminShortcut
-            to="/orders"
-            icon={ClipboardList}
-            title="Orders"
-            description="Review order volume, users, payment status, and fulfillment state."
-          />
-          <AdminShortcut
-            to="/products"
-            icon={PackageSearch}
-            title="Product catalog"
-            description="Browse product details, prescription flags, pricing, and availability."
-          />
-          <AdminShortcut
-            to="/admin/recommendations"
-            icon={Sparkles}
-            title="Recommendations"
-            description="Generate and maintain smart product suggestions for users and profiles."
-          />
-          <AdminShortcut
-            to="/admin/faqs"
-            icon={FileQuestion}
-            title="FAQ management"
-            description="Create, edit, activate, and remove FAQ assistant content."
-          />
-          <AdminShortcut
-            to="/admin/faq-logs"
-            icon={MessageSquareText}
-            title="FAQ audit logs"
-            description="Review silently captured FAQ bot sessions by user id."
-          />
-          <AdminShortcut
-            to="/profile"
-            icon={UserCircle}
-            title="Account"
-            description="Review the currently authenticated admin profile."
-          />
-        </div>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <AdminQuickLink to="/products" icon={PackageSearch} title="Catalog" description="Manage products, pricing, and availability." />
+        <AdminQuickLink to="/pharmacies" icon={Building2} title="Pharmacies" description="Review pharmacy locations, contact details, and inventory coverage." />
+        <AdminQuickLink to="/admin/recommendations" icon={Sparkles} title="Recommendations" description="Create and review product suggestions." />
+        <AdminQuickLink to="/admin/faqs" icon={FileQuestion} title="FAQ content" description="Maintain support answers for customers." />
+        <AdminQuickLink to="/admin/faq-logs" icon={MessageSquareText} title="FAQ logs" description="Review assistant conversations and matches." />
+        <AdminQuickLink to="/notifications" icon={FileText} title="Notifications" description="Review care activity updates." />
       </section>
     </div>
   );
 }
 
-function MetricCard({
-  label,
-  value,
+function OperationalCard({
+  title,
+  description,
+  actionTo,
+  actionLabel,
   loading,
-  tone = "default",
+  emptyTitle,
+  children,
 }: {
-  label: string;
-  value: number | string;
+  title: string;
+  description: string;
+  actionTo: string;
+  actionLabel: string;
   loading: boolean;
-  tone?: "default" | "warning" | "danger";
+  emptyTitle: string;
+  children: React.ReactNode[];
 }) {
-  const toneClass =
-    tone === "danger" ? "text-red-700" : tone === "warning" ? "text-amber-700" : "text-slate-900";
-
+  const hasChildren = children.length > 0;
   return (
     <Card>
-      <CardContent className="p-4">
-        <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-        <p className={"mt-2 text-2xl font-semibold " + toneClass}>{loading ? "..." : value}</p>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </div>
+        <Link to={actionTo} className="text-sm font-bold text-brand-700 hover:text-brand-800">
+          {actionLabel}
+        </Link>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loading && <p className="text-sm text-slate-500">Loading...</p>}
+        {!loading && !hasChildren && <EmptyState title={emptyTitle} />}
+        {children}
       </CardContent>
     </Card>
   );
 }
 
-function AdminShortcut({
-  to,
-  icon: Icon,
-  title,
-  description,
-}: {
-  to: string;
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-}) {
+function OrderRow({ order }: { order: OrderDTO }) {
   return (
-    <Link to={to} className="block">
-      <Card className="transition-shadow hover:shadow-md">
-        <CardHeader className="flex-row items-start gap-3 space-y-0">
-          <span className="rounded-md bg-slate-100 p-2 text-slate-700">
-            <Icon className="h-5 w-5" />
-          </span>
-          <div>
-            <CardTitle className="text-base">{title}</CardTitle>
-            <CardDescription>{description}</CardDescription>
-          </div>
-        </CardHeader>
-      </Card>
+    <Link to={`/orders/${order.id}`} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 transition-colors hover:bg-slate-50">
+      <div>
+        <p className="font-semibold text-ink-800">Order #{order.id}</p>
+        <p className="text-sm text-slate-500">{formatInstant(order.createdAt)} · {order.orderItems.length} item(s)</p>
+      </div>
+      <div className="text-right">
+        <Badge variant={order.status === "DELIVERED" ? "success" : order.status === "CANCELLED" ? "danger" : "info"}>{order.status}</Badge>
+        <p className="mt-1 text-sm font-semibold text-slate-700">{Number(order.totalAmount).toFixed(2)} KM</p>
+      </div>
     </Link>
+  );
+}
+
+function PrescriptionRow({ prescription }: { prescription: PrescriptionDTO }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
+      <div>
+        <p className="font-semibold text-ink-800">Prescription #{prescription.id}</p>
+        <p className="text-sm text-slate-500">Uploaded {formatInstant(prescription.uploadedAt)}</p>
+      </div>
+      <Badge variant="warning">{prescription.status}</Badge>
+    </div>
+  );
+}
+
+function ReservationRow({ reservation }: { reservation: ReservationDTO }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
+      <div>
+        <p className="font-semibold text-ink-800">Reservation #{reservation.id}</p>
+        <p className="text-sm text-slate-500">Product #{reservation.productId} · Pharmacy #{reservation.pharmacyId}</p>
+      </div>
+      <Badge variant="warning">{reservation.status}</Badge>
+    </div>
   );
 }

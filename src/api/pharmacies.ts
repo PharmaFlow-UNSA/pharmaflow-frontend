@@ -1,6 +1,7 @@
 import { api } from "./client";
 import type {
   InventoryDTO,
+  InventorySummaryDTO,
   Page,
   PharmacyCreatePayload,
   PharmacyDTO,
@@ -33,6 +34,16 @@ export async function createPharmacy(payload: PharmacyCreatePayload): Promise<Ph
 
 export async function getInventoryForProduct(productId: number): Promise<InventoryDTO[]> {
   const { data } = await api.get<InventoryDTO[]>(`/api/inventory/product/${productId}`);
+  return data;
+}
+
+export async function getProductInventorySummary(
+  productIds: number[]
+): Promise<InventorySummaryDTO[]> {
+  if (productIds.length === 0) return [];
+  const { data } = await api.get<InventorySummaryDTO[]>("/api/inventory/product-summary", {
+    params: { productIds: productIds.join(",") },
+  });
   return data;
 }
 

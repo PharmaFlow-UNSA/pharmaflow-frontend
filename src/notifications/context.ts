@@ -13,7 +13,7 @@ export interface NotificationState {
   loading: boolean;
   error: unknown;
   browserPermission: BrowserPermissionState;
-  refreshNotifications: () => Promise<void>;
+  refreshNotifications: (options?: { notifyOnError?: boolean }) => Promise<void>;
   markAsRead: (id: number) => Promise<void>;
   requestBrowserPermission: () => Promise<BrowserPermissionState>;
 }

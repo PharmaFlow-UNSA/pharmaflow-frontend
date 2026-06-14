@@ -57,6 +57,7 @@ export function FaqChatBubble() {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const widgetRef = useRef<HTMLDivElement | null>(null);
   const auditSessionIdRef = useRef<number | null>(null);
   const auditSessionPromiseRef = useRef<Promise<number | null> | null>(null);
 
@@ -109,7 +110,7 @@ export function FaqChatBubble() {
         {
           id: createMessageId(),
           sender: "bot",
-          text: "I couldn't reach the FAQ service. Please try again in a moment.",
+          text: "I couldn't load an answer right now. Please try again in a moment.",
           fallback: true,
         },
       ]);
@@ -120,6 +121,24 @@ export function FaqChatBubble() {
     if (open) {
       window.setTimeout(() => inputRef.current?.focus(), 0);
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!widgetRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -194,21 +213,21 @@ export function FaqChatBubble() {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 sm:bottom-6 sm:right-6">
+    <div ref={widgetRef} className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
       {open && (
         <section
           role="dialog"
           aria-label="FAQ assistant"
-          className="mb-4 flex max-h-[min(640px,calc(100vh-7rem))] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl sm:w-[380px]"
+          className="dropdown-enter mb-4 flex max-h-[88vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 sm:max-h-[min(680px,calc(100vh-7rem))] sm:w-[500px]"
         >
-          <header className="flex items-center justify-between border-b border-slate-200 bg-slate-900 px-4 py-3 text-white">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand-600">
+          <header className="flex items-center justify-between bg-[radial-gradient(circle_at_82%_18%,rgba(34,197,94,0.24),transparent_28%),linear-gradient(135deg,#0f172a_0%,#172554_68%,#0f766e_100%)] px-5 py-4 text-white sm:px-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-brand-100 ring-1 ring-white/15">
                 <Bot className="h-5 w-5" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold leading-5">FAQ Assistant</h2>
-                <p className="truncate text-xs text-slate-300">Answers from PharmaFlow support FAQs</p>
+                <h2 className="text-base font-extrabold leading-5">FAQ Assistant</h2>
+                <p className="mt-1 truncate text-sm text-slate-200">Answers from PharmaFlow support FAQs</p>
               </div>
             </div>
             <Button
@@ -217,7 +236,7 @@ export function FaqChatBubble() {
               size="icon"
               aria-label="Close FAQ assistant"
               onClick={() => setOpen(false)}
-              className="h-8 w-8 shrink-0 text-white hover:bg-slate-800 hover:text-white"
+              className="h-10 w-10 shrink-0 rounded-2xl text-white hover:bg-white/10 hover:text-white"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -225,18 +244,18 @@ export function FaqChatBubble() {
 
           <div
             ref={scrollRef}
-            className="flex min-h-[260px] flex-1 flex-col gap-3 overflow-y-auto bg-slate-50 px-4 py-4"
+            className="flex min-h-[360px] flex-1 flex-col gap-4 overflow-y-auto bg-slate-50 px-4 py-5 sm:min-h-[440px] sm:px-5"
           >
             {messages.length === 1 && suggestions.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-medium uppercase text-slate-500">Suggested questions</p>
-                <div className="flex flex-wrap gap-2">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Suggested questions</p>
+                <div className="flex flex-wrap gap-2.5">
                   {suggestions.map((faq) => (
                     <button
                       key={faq.id}
                       type="button"
                       onClick={() => applySuggestion(faq.question)}
-                      className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs font-medium text-slate-700 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 motion-reduce:hover:translate-y-0"
                     >
                       {faq.question}
                     </button>
@@ -252,7 +271,7 @@ export function FaqChatBubble() {
                 <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
                   <Bot className="h-4 w-4" aria-hidden="true" />
                 </span>
-                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                     Searching FAQs...
@@ -262,8 +281,8 @@ export function FaqChatBubble() {
             )}
           </div>
 
-          <form onSubmit={handleSubmit} className="border-t border-slate-200 bg-white p-3">
-            <div className="flex items-center gap-2">
+          <form onSubmit={handleSubmit} className="border-t border-slate-200 bg-white p-4 sm:p-5">
+            <div className="flex items-center gap-2.5">
               <label htmlFor="faq-chat-message" className="sr-only">
                 Ask the FAQ assistant
               </label>
@@ -275,14 +294,14 @@ export function FaqChatBubble() {
                 disabled={mutation.isPending}
                 maxLength={MAX_MESSAGE_LENGTH + 1}
                 placeholder="Ask a question..."
-                className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-w-0 flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-slate-400 transition-colors hover:border-brand-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
               />
               <Button
                 type="submit"
                 size="icon"
                 disabled={!canSend || mutation.isPending}
                 aria-label="Send question"
-                className="shrink-0"
+                className="h-12 w-12 shrink-0"
               >
                 {mutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -309,7 +328,7 @@ export function FaqChatBubble() {
         aria-label={open ? "Close FAQ assistant" : "Open FAQ assistant"}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="h-14 w-14 rounded-full shadow-lg shadow-slate-300/70"
+        className="h-16 w-16 rounded-full shadow-xl shadow-brand-900/20"
       >
         {open ? (
           <X className="h-6 w-6" aria-hidden="true" />
@@ -328,7 +347,7 @@ function ChatMessageBubble({ message }: { message: ChatMessage }) {
     <div className={cn("flex items-start gap-2", isUser && "flex-row-reverse")}>
       <span
         className={cn(
-          "mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+          "mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
           isUser ? "bg-slate-200 text-slate-700" : "bg-brand-100 text-brand-700"
         )}
       >
@@ -340,7 +359,7 @@ function ChatMessageBubble({ message }: { message: ChatMessage }) {
       </span>
       <div
         className={cn(
-          "max-w-[78%] rounded-lg px-3 py-2 text-sm leading-5",
+          "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm",
           isUser
             ? "bg-brand-600 text-white"
             : "border border-slate-200 bg-white text-slate-800"

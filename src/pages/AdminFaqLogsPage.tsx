@@ -2,19 +2,26 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { Activity, Bot, Search, User } from "lucide-react";
 import { useMemo, useState } from "react";
 import { getChatIntentMatch, getChatMessages, getChatSessionsByUser } from "@/api/chatbot";
+import { getUsers } from "@/api/users";
+import { AdminPageHeader, EmptyState } from "@/components/admin/AdminShell";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { Select } from "@/components/ui/Select";
 import type { ChatMessageDTO, ChatSessionDTO } from "@/types/api";
 
 export function AdminFaqLogsPage() {
-  const [draftUserId, setDraftUserId] = useState("");
+  const [draftUserId, setDraftUserId] = useState<number | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [filterError, setFilterError] = useState<string | null>(null);
+
+  const usersQuery = useQuery({
+    queryKey: ["users", "faq-logs"],
+    queryFn: () => getUsers({ page: 0, size: 100, sort: "email,asc" }),
+  });
 
   const sessionsQuery = useQuery({
     queryKey: ["chat-sessions", userId],
@@ -53,40 +60,47 @@ export function AdminFaqLogsPage() {
   );
 
   const applyFilter = () => {
-    const parsed = Number(draftUserId);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-      setFilterError("Enter a positive user id.");
+    if (!draftUserId) {
+      setFilterError("Choose an account to review.");
       return;
     }
     setFilterError(null);
     setSelectedSessionId(null);
-    setUserId(parsed);
+    setUserId(draftUserId);
   };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">FAQ audit logs</h1>
-        <p className="mt-1 text-slate-600">
-          Review silently captured FAQ assistant sessions and intent matches by user id.
-        </p>
-      </div>
+      <AdminPageHeader
+        icon={Bot}
+        eyebrow="Conversation audit"
+        title="FAQ audit logs"
+        description="Review captured FAQ assistant sessions and intent matches for a selected account."
+        stats={[
+          { label: "Accounts loaded", value: usersQuery.isLoading ? "..." : usersQuery.data?.totalElements ?? 0 },
+          { label: "FAQ sessions", value: sessionsQuery.isLoading ? "..." : sessions.length },
+          { label: "Messages", value: messagesQuery.isLoading ? "..." : messages.length },
+        ]}
+      />
 
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1.5">
-              <Label htmlFor="faq-log-user-id">User id</Label>
-              <Input
-                id="faq-log-user-id"
-                type="number"
-                min="1"
-                value={draftUserId}
-                onChange={(event) => setDraftUserId(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") applyFilter();
-                }}
-              />
+              <Label htmlFor="faq-log-account">Account</Label>
+              <Select
+                id="faq-log-account"
+                value={draftUserId ? String(draftUserId) : ""}
+                onChange={(event) => setDraftUserId(event.target.value ? Number(event.target.value) : null)}
+                disabled={usersQuery.isLoading || (usersQuery.data?.content.length ?? 0) === 0}
+              >
+                <option value="">Select an account</option>
+                {usersQuery.data?.content.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.firstName} {user.lastName} · {user.email}
+                  </option>
+                ))}
+              </Select>
             </div>
             <Button type="button" onClick={applyFilter}>
               <Search className="mr-2 h-4 w-4" />
@@ -97,6 +111,7 @@ export function AdminFaqLogsPage() {
         </CardContent>
       </Card>
 
+      {usersQuery.isError && <ErrorMessage error={usersQuery.error} />}
       {sessionsQuery.isError && <ErrorMessage error={sessionsQuery.error} />}
       {messagesQuery.isError && <ErrorMessage error={messagesQuery.error} />}
 
@@ -104,10 +119,12 @@ export function AdminFaqLogsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Sessions</CardTitle>
-            <CardDescription>Backend exposes FAQ sessions by user id.</CardDescription>
+            <CardDescription>Review FAQ assistant sessions for the selected account.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {userId === null && <p className="text-sm text-slate-600">Enter a user id to load logs.</p>}
+            {userId === null && (
+              <EmptyState title="Choose an account" description="Select an account above to load FAQ bot sessions." />
+            )}
             {sessionsQuery.isLoading && <p className="text-sm text-slate-500">Loading sessions...</p>}
             {userId !== null && !sessionsQuery.isLoading && sessions.length === 0 && (
               <p className="text-sm text-slate-600">No FAQ bot sessions found for this user.</p>

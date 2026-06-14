@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
+import { useToast } from "@/toast/useToast";
 import type { PatientProfileDTO, TherapyDTO, TherapyReminderPayload } from "@/types/api";
 
 const therapySchema = z.object({
@@ -46,6 +47,7 @@ export function TherapiesPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderDefaults, setReminderDefaults] = useState<ReminderFormDefaults | null>(null);
+  const toast = useToast();
 
   // ── Current user (patient profile) ───────────────────────────────────
   const { data: user, isLoading, isError, error } = useQuery({
@@ -102,6 +104,7 @@ export function TherapiesPage() {
       setShowModal(false);
       setEditingTherapy(null);
       setDeleteConfirmId(null);
+      toast.success("Therapies updated.");
     },
   });
 
@@ -112,6 +115,7 @@ export function TherapiesPage() {
       setReminderDefaults(null);
       void queryClient.invalidateQueries({ queryKey: ["therapyReminders"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success("Therapy reminder created.");
     },
   });
 
@@ -176,11 +180,23 @@ export function TherapiesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Therapies</h1>
-        <p className="text-sm text-slate-500">Manage your active medications and treatments.</p>
-      </div>
+    <div className="space-y-7 animate-section">
+      <section className="flex flex-col gap-5 rounded-[2rem] bg-[radial-gradient(circle_at_90%_15%,rgba(14,165,233,0.18),transparent_24%),linear-gradient(135deg,#ecfeff_0%,#f0fdf4_55%,#ffffff_100%)] p-7 shadow-sm ring-1 ring-brand-100/80 sm:flex-row sm:items-center sm:justify-between lg:p-8">
+        <div className="flex items-start gap-4">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-100 text-brand-700">
+            <Pill className="h-6 w-6" />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-700">My Care</p>
+            <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-ink-800">Therapies</h1>
+            <p className="mt-2 max-w-2xl leading-7 text-slate-600">Manage your active medications and treatments.</p>
+          </div>
+        </div>
+        <Button size="sm" onClick={openAdd}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Add therapy
+        </Button>
+      </section>
 
       {isLoading && <div className="h-48 animate-pulse rounded-xl bg-slate-100" />}
       {isError && <ErrorMessage error={error} />}
@@ -188,22 +204,16 @@ export function TherapiesPage() {
       {!isLoading && !isError && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>
-                Active therapies
-                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                  {therapies.length}
-                </span>
-              </CardTitle>
-              <Button size="sm" onClick={openAdd}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Add therapy
-              </Button>
-            </div>
+            <CardTitle>
+              Active therapies
+              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                {therapies.length}
+              </span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {therapies.length === 0 ? (
-              <div className="rounded-lg border-2 border-dashed border-slate-200 py-12 text-center">
+              <div className="rounded-[1.5rem] border-2 border-dashed border-slate-200 bg-slate-50/70 py-12 text-center">
                 <p className="text-sm text-slate-400">No therapies recorded yet.</p>
                 <Button size="sm" className="mt-3" onClick={openAdd}>
                   Add your first therapy

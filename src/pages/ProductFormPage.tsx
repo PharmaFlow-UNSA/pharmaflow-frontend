@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select } from "@/components/ui/Select";
+import { useToast } from "@/toast/useToast";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -28,7 +29,14 @@ const schema = z.object({
   productType: z.enum(["MEDICATION", "SUPPLEMENT", "COSMETIC", "MEDICAL_DEVICE"]),
   requiresPrescription: z.boolean(),
   categoryId: z.coerce.number().int().positive("Select a category"),
-  imageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  imageUrl: z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === "" || value.startsWith("/") || z.string().url().safeParse(value).success,
+      "Use an absolute URL or a local path like /demo/products/example.svg"
+    )
+    .optional(),
 });
 
 // `z.coerce` makes the schema's input type (pre-coercion) differ from its
@@ -43,6 +51,7 @@ export function ProductFormPage() {
   const id = Number(productId);
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const toast = useToast();
 
   const categories = useQuery({
     queryKey: ["categories"],
@@ -95,6 +104,7 @@ export function ProductFormPage() {
     onSuccess: (saved) => {
       void qc.invalidateQueries({ queryKey: ["products"] });
       if (isEdit) void qc.invalidateQueries({ queryKey: ["product", id] });
+      toast.success(isEdit ? "Product updated." : "Product created.");
       navigate(`/products/${saved.id}`);
     },
   });
@@ -200,6 +210,18 @@ export function ProductFormPage() {
         </div>
 
         {/* Description */}
+        <div className="space-y-1.5">
+          <Label htmlFor="imageUrl">Image URL</Label>
+          <Input
+            id="imageUrl"
+            placeholder="/demo/products/pain-relief.svg"
+            {...register("imageUrl")}
+          />
+          {errors.imageUrl && (
+            <p className="text-xs text-red-600">{errors.imageUrl.message}</p>
+          )}
+        </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="description">Description</Label>
           <textarea

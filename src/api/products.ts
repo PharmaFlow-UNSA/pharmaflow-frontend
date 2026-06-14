@@ -23,6 +23,7 @@ export interface ProductQuery {
   requiresPrescription?: boolean;
   minPrice?: number;
   maxPrice?: number;
+  categoryId?: number;
 }
 
 // ── Products ─────────────────────────────────────────────────────────────────
