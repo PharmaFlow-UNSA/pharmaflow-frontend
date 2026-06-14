@@ -101,6 +101,9 @@ export function OrderProductPage() {
       toast.success(`Order #${order.id} was placed.`);
       navigate(`/orders/${order.id}`, { replace: true });
     },
+    onError: () => {
+      toast.error("Could not place the order.");
+    },
   });
 
   const requiresRx = productQuery.data?.requiresPrescription === true;

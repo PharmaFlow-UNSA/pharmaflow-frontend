@@ -1,4 +1,5 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
   CheckCircle2,
@@ -8,29 +9,66 @@ import {
   Mail,
   MapPin,
   Package,
+  Pencil,
   Phone,
+  Plus,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { useMemo, useState, type ComponentType, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
-import { getInventoryForPharmacy, getPharmacyById } from "@/api/pharmacies";
+import { useForm } from "react-hook-form";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { z } from "zod";
+import {
+  createInventory,
+  deleteInventory,
+  deletePharmacy,
+  getInventoryForPharmacy,
+  getPharmacyById,
+  updateInventory,
+  updatePharmacy,
+} from "@/api/pharmacies";
 import { getProductById } from "@/api/products";
+import { useAuth } from "@/auth/useAuth";
 import { ErrorMessage } from "@/components/ErrorMessage";
+import { PharmacyFormFields } from "@/components/PharmacyFormFields";
+import { ProductSearchSelect } from "@/components/ProductSearchSelect";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
+import { Modal } from "@/components/ui/Modal";
 import { getPharmacyImage } from "@/lib/catalog";
+import { pharmacySchema, type PharmacyFormValues } from "@/lib/pharmacySchema";
+import { useToast } from "@/toast/useToast";
 import { showApiErrorToast, showSuccessToast } from "@/lib/errors";
 import { cn, formatInstant } from "@/lib/utils";
-import type { InventoryDTO } from "@/types/api";
+import type { InventoryDTO, ProductDTO } from "@/types/api";
 
 const INVENTORY_PAGE_SIZE = 10;
+const today = () => new Date().toISOString().slice(0, 10);
+
+const inventorySchema = z.object({
+  productId: z.number().int().positive("Product ID is required"),
+  quantity: z.number().int().min(0, "Quantity must be at least 0").max(1_000_000),
+  reorderLevel: z.number().int().min(0, "Reorder level must be at least 0").max(1_000_000),
+});
+type InventoryForm = z.infer<typeof inventorySchema>;
 
 export function PharmacyDetailPage() {
   const { pharmacyId } = useParams();
   const id = Number(pharmacyId);
   const enabled = Number.isFinite(id) && id > 0;
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const { hasRole } = useAuth();
+  const isStaff = hasRole("ROLE_PHARMACIST", "ROLE_ADMIN");
   const [inventoryPageState, setInventoryPageState] = useState({ key: "", page: 1 });
+  const [editOpen, setEditOpen] = useState(false);
+  const [invModal, setInvModal] = useState<{ mode: "create" | "edit"; item: InventoryDTO | null } | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(null);
 
   const pharmacy = useQuery({
     queryKey: ["pharmacy", id],
@@ -75,6 +113,126 @@ export function PharmacyDetailPage() {
       ),
     [currentInventoryPage, inventoryItems]
   );
+  const editForm = useForm<PharmacyFormValues>({ resolver: zodResolver(pharmacySchema) });
+  const invForm = useForm<InventoryForm>({ resolver: zodResolver(inventorySchema) });
+
+  const updatePharmacyMut = useMutation({
+    mutationFn: (values: PharmacyFormValues) => updatePharmacy(id, values),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["pharmacy", id], updated);
+      queryClient.invalidateQueries({ queryKey: ["pharmacies"] });
+      setEditOpen(false);
+      toast.success(`Pharmacy "${updated.name}" updated.`);
+    },
+    onError: () => {
+      toast.error("Could not update the pharmacy.");
+    },
+  });
+
+  const deletePharmacyMut = useMutation({
+    mutationFn: () => deletePharmacy(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pharmacies"] });
+      toast.success("Pharmacy deleted.");
+      navigate("/pharmacies", { replace: true });
+    },
+    onError: () => {
+      toast.error("Could not delete the pharmacy.");
+    },
+  });
+
+  const createInvMut = useMutation({
+    mutationFn: createInventory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory", "pharmacy", id] });
+      setInvModal(null);
+      invForm.reset();
+      setSelectedProduct(null);
+      toast.success("Inventory item added.");
+    },
+    onError: () => {
+      toast.error("Could not add the inventory item.");
+    },
+  });
+
+  const updateInvMut = useMutation({
+    mutationFn: ({ invId, payload }: { invId: number; payload: Parameters<typeof updateInventory>[1] }) =>
+      updateInventory(invId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory", "pharmacy", id] });
+      setInvModal(null);
+      invForm.reset();
+      toast.success("Inventory item updated.");
+    },
+    onError: () => {
+      toast.error("Could not update the inventory item.");
+    },
+  });
+
+  const deleteInvMut = useMutation({
+    mutationFn: (invId: number) => deleteInventory(invId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory", "pharmacy", id] });
+      toast.success("Inventory item removed.");
+    },
+    onError: () => {
+      toast.error("Could not remove the inventory item.");
+    },
+  });
+
+  const openEdit = () => {
+    if (!pharmacy.data) return;
+    editForm.reset({
+      name: pharmacy.data.name,
+      address: pharmacy.data.address,
+      city: pharmacy.data.city,
+      phoneNumber: pharmacy.data.phoneNumber,
+      email: pharmacy.data.email,
+      openingHours: pharmacy.data.openingHours,
+    });
+    setEditOpen(true);
+  };
+
+  const openInvCreate = () => {
+    invForm.reset({ quantity: 0, reorderLevel: 10 });
+    setSelectedProduct(null);
+    setInvModal({ mode: "create", item: null });
+  };
+
+  const openInvEdit = (item: InventoryDTO) => {
+    invForm.reset({
+      productId: item.productId,
+      quantity: item.quantity,
+      reorderLevel: item.reorderLevel ?? 0,
+    });
+    setInvModal({ mode: "edit", item });
+  };
+
+  const onInvSubmit = (values: InventoryForm) => {
+    if (invModal?.mode === "edit" && invModal.item) {
+      updateInvMut.mutate({
+        invId: invModal.item.id,
+        payload: {
+          productId: invModal.item.productId,
+          quantity: values.quantity,
+          reorderLevel: values.reorderLevel,
+          lastRestocked: today(),
+          pharmacyId: id,
+        },
+      });
+      return;
+    }
+
+    createInvMut.mutate({
+      productId: values.productId,
+      quantity: values.quantity,
+      reorderLevel: values.reorderLevel,
+      lastRestocked: today(),
+      pharmacyId: id,
+    });
+  };
+
+  const invSaving = createInvMut.isPending || updateInvMut.isPending;
 
   const handleRefreshInventory = async () => {
     try {
@@ -92,6 +250,27 @@ export function PharmacyDetailPage() {
       {pharmacy.data && (
         <div className="space-y-7 animate-section">
           <PharmacyHero pharmacy={pharmacy.data} inventoryCount={totalInventoryItems} />
+          {isStaff && (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={openEdit}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit pharmacy
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deletePharmacyMut.isPending}
+                onClick={() => {
+                  if (window.confirm(`Delete "${pharmacy.data!.name}"? This cannot be undone.`)) {
+                    deletePharmacyMut.mutate();
+                  }
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete pharmacy
+              </Button>
+            </div>
+          )}
 
           <div className="grid gap-5 lg:grid-cols-[minmax(18rem,0.36fr)_minmax(0,0.64fr)]">
             <ContactCard pharmacy={pharmacy.data} />
@@ -107,10 +286,105 @@ export function PharmacyDetailPage() {
               productsById={productsById}
               onRefresh={() => void handleRefreshInventory()}
               onPageChange={(page) => setInventoryPageState({ key: inventoryKey, page })}
+              isStaff={isStaff}
+              busy={deleteInvMut.isPending}
+              onAdd={openInvCreate}
+              onEdit={openInvEdit}
+              onDelete={(item) => {
+                if (window.confirm(`Remove product #${item.productId} from this pharmacy's stock?`)) {
+                  deleteInvMut.mutate(item.id);
+                }
+              }}
             />
           </div>
         </div>
       )}
+
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit pharmacy">
+        <form
+          className="space-y-4"
+          onSubmit={editForm.handleSubmit((values) => updatePharmacyMut.mutate(values))}
+          noValidate
+        >
+          <PharmacyFormFields form={editForm} />
+          <ErrorMessage error={updatePharmacyMut.error} />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={updatePharmacyMut.isPending}>
+              {updatePharmacyMut.isPending ? "Saving..." : "Save changes"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={!!invModal}
+        onClose={() => setInvModal(null)}
+        title={invModal?.mode === "edit" ? "Edit inventory item" : "Add inventory item"}
+      >
+        <form className="space-y-4" onSubmit={invForm.handleSubmit(onInvSubmit)} noValidate>
+          {invModal?.mode === "edit" ? (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+              <span className="text-slate-600">Product</span>{" "}
+              <span className="font-medium text-slate-900">
+                {invModal.item ? productsById.get(invModal.item.productId)?.name ?? `Product #${invModal.item.productId}` : ""}
+              </span>
+            </div>
+          ) : (
+            <ProductSearchSelect
+              selectedProduct={selectedProduct}
+              onSelect={(product) => {
+                setSelectedProduct(product);
+                invForm.setValue("productId", product.id, { shouldValidate: true });
+              }}
+              onClear={() => {
+                setSelectedProduct(null);
+                invForm.resetField("productId");
+              }}
+              error={invForm.formState.errors.productId?.message}
+            />
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="inv-qty">Quantity in stock</Label>
+              <Input
+                id="inv-qty"
+                type="number"
+                min={0}
+                {...invForm.register("quantity", { valueAsNumber: true })}
+              />
+              {invForm.formState.errors.quantity && (
+                <p className="text-xs text-red-600">{invForm.formState.errors.quantity.message}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="inv-reorder">Reorder at</Label>
+              <Input
+                id="inv-reorder"
+                type="number"
+                min={0}
+                {...invForm.register("reorderLevel", { valueAsNumber: true })}
+              />
+              {invForm.formState.errors.reorderLevel && (
+                <p className="text-xs text-red-600">{invForm.formState.errors.reorderLevel.message}</p>
+              )}
+            </div>
+          </div>
+
+          <ErrorMessage error={createInvMut.error || updateInvMut.error} />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setInvModal(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={invSaving}>
+              {invSaving ? "Saving..." : invModal?.mode === "edit" ? "Save item" : "Add item"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
@@ -293,6 +567,11 @@ function InventoryCard({
   productsById,
   onRefresh,
   onPageChange,
+  isStaff,
+  busy,
+  onAdd,
+  onEdit,
+  onDelete,
 }: {
   inventory: InventoryDTO[];
   totalItems: number;
@@ -304,6 +583,11 @@ function InventoryCard({
   productsById: Map<number, { id: number; name: string; packageSize?: string }>;
   onRefresh: () => void;
   onPageChange: (page: number) => void;
+  isStaff: boolean;
+  busy: boolean;
+  onAdd: () => void;
+  onEdit: (item: InventoryDTO) => void;
+  onDelete: (item: InventoryDTO) => void;
 }) {
   return (
     <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 shadow-sm">
@@ -322,6 +606,12 @@ function InventoryCard({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="info">{totalItems} items</Badge>
+            {isStaff && (
+              <Button type="button" size="sm" onClick={onAdd}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add item
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -366,11 +656,20 @@ function InventoryCard({
                     <th className="px-4 py-3 text-right font-bold">Reorder at</th>
                     <th className="px-4 py-3 text-right font-bold">Restocked</th>
                     <th className="px-4 py-3 text-right font-bold">Status</th>
+                    {isStaff && <th className="px-4 py-3 text-right font-bold">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {inventory.map((inv) => (
-                    <InventoryTableRow key={inv.id} item={inv} productsById={productsById} />
+                    <InventoryTableRow
+                      key={inv.id}
+                      item={inv}
+                      productsById={productsById}
+                      isStaff={isStaff}
+                      busy={busy}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -378,7 +677,15 @@ function InventoryCard({
 
             <div className="grid gap-3 md:hidden">
               {inventory.map((inv) => (
-                <InventoryMobileRow key={inv.id} item={inv} productsById={productsById} />
+                <InventoryMobileRow
+                  key={inv.id}
+                  item={inv}
+                  productsById={productsById}
+                  isStaff={isStaff}
+                  busy={busy}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
               ))}
             </div>
 
@@ -399,9 +706,17 @@ function InventoryCard({
 function InventoryTableRow({
   item,
   productsById,
+  isStaff,
+  busy,
+  onEdit,
+  onDelete,
 }: {
   item: InventoryDTO;
   productsById: Map<number, { id: number; name: string; packageSize?: string }>;
+  isStaff: boolean;
+  busy: boolean;
+  onEdit: (item: InventoryDTO) => void;
+  onDelete: (item: InventoryDTO) => void;
 }) {
   const product = productsById.get(item.productId);
   return (
@@ -420,6 +735,24 @@ function InventoryTableRow({
       <td className="px-4 py-3 text-right">
         <InventoryStatusBadge item={item} />
       </td>
+      {isStaff && (
+        <td className="px-4 py-3">
+          <div className="flex justify-end gap-1">
+            <Button type="button" variant="ghost" size="sm" onClick={() => onEdit(item)}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => onDelete(item)}
+            >
+              <Trash2 className="h-3.5 w-3.5 text-red-600" />
+            </Button>
+          </div>
+        </td>
+      )}
     </tr>
   );
 }
@@ -427,9 +760,17 @@ function InventoryTableRow({
 function InventoryMobileRow({
   item,
   productsById,
+  isStaff,
+  busy,
+  onEdit,
+  onDelete,
 }: {
   item: InventoryDTO;
   productsById: Map<number, { id: number; name: string; packageSize?: string }>;
+  isStaff: boolean;
+  busy: boolean;
+  onEdit: (item: InventoryDTO) => void;
+  onDelete: (item: InventoryDTO) => void;
 }) {
   const product = productsById.get(item.productId);
   return (
@@ -441,7 +782,25 @@ function InventoryMobileRow({
           </Link>
           {product?.packageSize && <p className="mt-1 text-xs text-slate-500">{product.packageSize}</p>}
         </div>
-        <InventoryStatusBadge item={item} />
+        <div className="flex flex-col items-end gap-2">
+          <InventoryStatusBadge item={item} />
+          {isStaff && (
+            <div className="flex gap-1">
+              <Button type="button" variant="ghost" size="sm" onClick={() => onEdit(item)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => onDelete(item)}
+              >
+                <Trash2 className="h-3.5 w-3.5 text-red-600" />
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
         <InventoryStat label="In stock" value={String(item.quantity)} />

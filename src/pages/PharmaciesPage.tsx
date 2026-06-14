@@ -1,23 +1,50 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Building2, Clock, Mail, MapPin, Phone, Search } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Building2, Clock, Mail, MapPin, Phone, Plus, Search } from "lucide-react";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
-import { getPharmacies, type PharmacyQuery } from "@/api/pharmacies";
+import { createPharmacy, getPharmacies, type PharmacyQuery } from "@/api/pharmacies";
+import { useAuth } from "@/auth/useAuth";
 import { ErrorMessage } from "@/components/ErrorMessage";
+import { PharmacyFormFields } from "@/components/PharmacyFormFields";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { Modal } from "@/components/ui/Modal";
 import { getPharmacyImage } from "@/lib/catalog";
+import { pharmacySchema, type PharmacyFormValues } from "@/lib/pharmacySchema";
+import { useToast } from "@/toast/useToast";
 
 export function PharmaciesPage() {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const { hasRole } = useAuth();
+  const isStaff = hasRole("ROLE_PHARMACIST", "ROLE_ADMIN");
   const [page, setPage] = useState(0);
   const [filters, setFilters] = useState<PharmacyQuery>({});
   const [draft, setDraft] = useState<PharmacyQuery>({});
+  const [createOpen, setCreateOpen] = useState(false);
 
   const query = useQuery({
     queryKey: ["pharmacies", { page, ...filters }],
     queryFn: () => getPharmacies({ page, size: 9, sort: "name,asc", ...filters }),
     placeholderData: keepPreviousData,
+  });
+
+  const createForm = useForm<PharmacyFormValues>({ resolver: zodResolver(pharmacySchema) });
+
+  const createMutation = useMutation({
+    mutationFn: (values: PharmacyFormValues) => createPharmacy(values),
+    onSuccess: (pharmacy) => {
+      queryClient.invalidateQueries({ queryKey: ["pharmacies"] });
+      setCreateOpen(false);
+      createForm.reset();
+      toast.success(`Pharmacy "${pharmacy.name}" created.`);
+    },
+    onError: () => {
+      toast.error("Could not create the pharmacy.");
+    },
   });
 
   const applyFilters = (e: React.FormEvent) => {
@@ -49,6 +76,19 @@ export function PharmaciesPage() {
           <p className="mt-3 max-w-2xl leading-7 text-slate-600">
             Browse partner pharmacies, opening hours, contact information, and available inventory.
           </p>
+          {isStaff && (
+            <Button
+              type="button"
+              className="mt-6 rounded-2xl"
+              onClick={() => {
+                createForm.reset();
+                setCreateOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New pharmacy
+            </Button>
+          )}
         </div>
       </section>
 
@@ -171,6 +211,25 @@ export function PharmaciesPage() {
           </div>
         </>
       )}
+
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="New pharmacy">
+        <form
+          className="space-y-4"
+          onSubmit={createForm.handleSubmit((values) => createMutation.mutate(values))}
+          noValidate
+        >
+          <PharmacyFormFields form={createForm} />
+          <ErrorMessage error={createMutation.error} />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? "Creating..." : "Create pharmacy"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

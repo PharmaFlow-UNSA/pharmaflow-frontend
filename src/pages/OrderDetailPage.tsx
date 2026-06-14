@@ -1,11 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
-import { CreditCard, FileText, MapPin, Package, Truck } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CreditCard, FileText, MapPin, Package, SlidersHorizontal, Truck } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { getDeliveriesByOrderId } from "@/api/deliveries";
-import { getOrderById } from "@/api/orders";
+import { getOrderById, patchOrderStatus } from "@/api/orders";
+import { useAuth } from "@/auth/useAuth";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { useToast } from "@/toast/useToast";
 import { formatInstant } from "@/lib/utils";
 import {
   DELIVERY_STATUS_LABELS,
@@ -29,9 +32,32 @@ const DELIVERY_STATUS_VARIANT: Record<DeliveryStatus, "info" | "warning" | "succ
   RETURNED: "warning",
 };
 
+const ORDER_NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
+  PENDING: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: ["SHIPPED", "CANCELLED"],
+  SHIPPED: ["DELIVERED"],
+  DELIVERED: [],
+  CANCELLED: [],
+};
+
+const ORDER_ACTION: Record<
+  OrderStatus,
+  { label: string; variant: "default" | "outline" | "destructive" }
+> = {
+  PENDING: { label: "Reopen as pending", variant: "outline" },
+  CONFIRMED: { label: "Confirm order", variant: "default" },
+  SHIPPED: { label: "Mark as shipped", variant: "default" },
+  DELIVERED: { label: "Mark as delivered", variant: "default" },
+  CANCELLED: { label: "Cancel order", variant: "destructive" },
+};
+
 export function OrderDetailPage() {
   const { orderId } = useParams();
   const id = Number(orderId);
+  const queryClient = useQueryClient();
+  const { hasRole } = useAuth();
+  const toast = useToast();
+  const isStaff = hasRole("ROLE_PHARMACIST", "ROLE_ADMIN");
 
   const orderQuery = useQuery({
     queryKey: ["order", id],
@@ -43,6 +69,18 @@ export function OrderDetailPage() {
     queryKey: ["deliveries", "order", id],
     queryFn: () => getDeliveriesByOrderId(id),
     enabled: Number.isFinite(id) && id > 0,
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (status: OrderStatus) => patchOrderStatus(id, status),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["order", id], updated);
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast.success(`Order #${updated.id} moved to ${updated.status.toLowerCase()}.`);
+    },
+    onError: () => {
+      toast.error("Could not update the order status.");
+    },
   });
 
   return (
@@ -170,6 +208,45 @@ export function OrderDetailPage() {
             </div>
 
             <aside className="space-y-5 lg:sticky lg:top-24">
+              {isStaff && ORDER_NEXT_STATUSES[orderQuery.data.status].length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-50 text-amber-700 ring-1 ring-amber-100">
+                        <SlidersHorizontal className="h-4 w-4" />
+                      </span>
+                      Update status
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Current status
+                      </span>
+                      <Badge variant={ORDER_STATUS_VARIANT[orderQuery.data.status]}>
+                        {orderQuery.data.status}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {ORDER_NEXT_STATUSES[orderQuery.data.status].map((next) => (
+                        <Button
+                          key={next}
+                          size="sm"
+                          variant={ORDER_ACTION[next].variant}
+                          disabled={statusMutation.isPending}
+                          onClick={() => statusMutation.mutate(next)}
+                        >
+                          {ORDER_ACTION[next].label}
+                        </Button>
+                      ))}
+                    </div>
+                    {statusMutation.isError && (
+                      <ErrorMessage error={statusMutation.error} className="mt-3" />
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">

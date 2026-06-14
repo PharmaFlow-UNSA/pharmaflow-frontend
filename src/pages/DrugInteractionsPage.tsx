@@ -1,14 +1,26 @@
-import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Pill, Search, ShieldAlert } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Pill, Plus, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { getDrugInteractions } from "@/api/products";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import {
+  createDrugInteraction,
+  deleteDrugInteraction,
+  getDrugInteractions,
+  getSubstances,
+} from "@/api/products";
+import { useAuth } from "@/auth/useAuth";
 import { AdminPageHeader, EmptyState } from "@/components/admin/AdminShell";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
+import { useToast } from "@/toast/useToast";
 import type { SeverityLevel } from "@/types/api";
 
 const severityBadge: Record<SeverityLevel, "danger" | "warning" | "success"> = {
@@ -17,14 +29,76 @@ const severityBadge: Record<SeverityLevel, "danger" | "warning" | "success"> = {
   MINOR: "success",
 };
 
+const schema = z
+  .object({
+    substanceAId: z.coerce.number().int().positive("Select substance A"),
+    substanceBId: z.coerce.number().int().positive("Select substance B"),
+    severity: z.enum(["MINOR", "MODERATE", "MAJOR"]),
+    description: z.string().min(10, "At least 10 characters").max(2000, "Max 2000 characters"),
+    clinicalRecommendation: z.string().max(2000).optional(),
+  })
+  .refine((values) => values.substanceAId !== values.substanceBId, {
+    message: "Substance A and B must be different",
+    path: ["substanceBId"],
+  });
+
+type FormInput = z.input<typeof schema>;
+type FormValues = z.output<typeof schema>;
+
 export function DrugInteractionsPage() {
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState<SeverityLevel | "">("");
+  const [showModal, setShowModal] = useState(false);
+  const { hasRole } = useAuth();
+  const canWrite = hasRole("ROLE_PHARMACIST", "ROLE_ADMIN");
+  const canDelete = hasRole("ROLE_ADMIN");
+  const queryClient = useQueryClient();
+  const toast = useToast();
 
   const query = useQuery({
     queryKey: ["interactions"],
     queryFn: getDrugInteractions,
     staleTime: 60_000,
+  });
+
+  const substances = useQuery({
+    queryKey: ["substances"],
+    queryFn: getSubstances,
+    enabled: showModal,
+    staleTime: 300_000,
+  });
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FormInput, unknown, FormValues>({
+    resolver: zodResolver(schema),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createDrugInteraction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["interactions"] });
+      setShowModal(false);
+      reset();
+      toast.success("Drug interaction added.");
+    },
+    onError: () => {
+      toast.error("Could not add the drug interaction.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteDrugInteraction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["interactions"] });
+      toast.success("Interaction deleted.");
+    },
+    onError: () => {
+      toast.error("Could not delete the interaction.");
+    },
   });
 
   const interactions = useMemo(() => query.data ?? [], [query.data]);
@@ -62,6 +136,18 @@ export function DrugInteractionsPage() {
           { label: "Major", value: stats.major },
           { label: "Moderate", value: stats.moderate },
         ]}
+        action={
+          canWrite ? (
+            <Button
+              type="button"
+              className="rounded-2xl bg-white text-brand-700 hover:bg-brand-50"
+              onClick={() => setShowModal(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add interaction
+            </Button>
+          ) : undefined
+        }
       />
 
       <Card className="rounded-[1.75rem] shadow-sm">
@@ -96,6 +182,7 @@ export function DrugInteractionsPage() {
       </Card>
 
       {query.isError && <ErrorMessage error={query.error} />}
+      {deleteMutation.isError && <ErrorMessage error={deleteMutation.error} />}
 
       {query.isLoading && (
         <div className="grid gap-4">
@@ -136,9 +223,25 @@ export function DrugInteractionsPage() {
                       )}
                     </div>
                   </div>
-                  <Badge variant={severityBadge[interaction.severity]} className="shrink-0 px-3 py-1 font-bold">
-                    {interaction.severity}
-                  </Badge>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge variant={severityBadge[interaction.severity]} className="px-3 py-1 font-bold">
+                      {interaction.severity}
+                    </Badge>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm("Delete this interaction?")) {
+                            deleteMutation.mutate(interaction.id);
+                          }
+                        }}
+                        className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        aria-label="Delete interaction"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {interaction.clinicalRecommendation && (
@@ -161,6 +264,102 @@ export function DrugInteractionsPage() {
           Showing {filtered.length} of {query.data.length} interaction records.
         </p>
       )}
+
+      <Modal
+        open={showModal}
+        onClose={() => {
+          setShowModal(false);
+          reset();
+        }}
+        title="Add drug interaction"
+        className="max-w-lg"
+      >
+        <form
+          onSubmit={handleSubmit((values) => createMutation.mutate(values))}
+          className="space-y-4"
+          noValidate
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="substanceAId">Substance A *</Label>
+              <Select id="substanceAId" {...register("substanceAId")} aria-invalid={!!errors.substanceAId}>
+                <option value="">Select...</option>
+                {substances.data?.map((substance) => (
+                  <option key={substance.id} value={substance.id}>
+                    {substance.commonName ?? substance.inn}
+                  </option>
+                ))}
+              </Select>
+              {errors.substanceAId && <p className="text-xs text-red-600">{errors.substanceAId.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="substanceBId">Substance B *</Label>
+              <Select id="substanceBId" {...register("substanceBId")} aria-invalid={!!errors.substanceBId}>
+                <option value="">Select...</option>
+                {substances.data?.map((substance) => (
+                  <option key={substance.id} value={substance.id}>
+                    {substance.commonName ?? substance.inn}
+                  </option>
+                ))}
+              </Select>
+              {errors.substanceBId && <p className="text-xs text-red-600">{errors.substanceBId.message}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="severity">Severity *</Label>
+            <Select id="severity" {...register("severity")} aria-invalid={!!errors.severity}>
+              <option value="">Select...</option>
+              <option value="MINOR">Minor</option>
+              <option value="MODERATE">Moderate</option>
+              <option value="MAJOR">Major</option>
+            </Select>
+            {errors.severity && <p className="text-xs text-red-600">{errors.severity.message}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="description">Description *</Label>
+            <textarea
+              id="description"
+              rows={3}
+              className="flex w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              placeholder="Describe the clinical significance of this interaction."
+              {...register("description")}
+              aria-invalid={!!errors.description}
+            />
+            {errors.description && <p className="text-xs text-red-600">{errors.description.message}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="clinicalRecommendation">Clinical recommendation</Label>
+            <textarea
+              id="clinicalRecommendation"
+              rows={2}
+              className="flex w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              placeholder="Example: avoid combination or monitor closely."
+              {...register("clinicalRecommendation")}
+            />
+          </div>
+
+          {createMutation.isError && <ErrorMessage error={createMutation.error} />}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowModal(false);
+                reset();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? "Saving..." : "Add interaction"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

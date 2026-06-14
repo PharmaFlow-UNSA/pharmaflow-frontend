@@ -2,6 +2,7 @@ import { api } from "./client";
 import type {
   InventoryDTO,
   InventorySummaryDTO,
+  InventoryWritePayload,
   Page,
   PharmacyCreatePayload,
   PharmacyDTO,
@@ -30,6 +31,18 @@ export async function createPharmacy(payload: PharmacyCreatePayload): Promise<Ph
   return data;
 }
 
+export async function updatePharmacy(
+  id: number,
+  payload: PharmacyCreatePayload
+): Promise<PharmacyDTO> {
+  const { data } = await api.put<PharmacyDTO>(`/api/pharmacies/${id}`, payload);
+  return data;
+}
+
+export async function deletePharmacy(id: number): Promise<void> {
+  await api.delete(`/api/pharmacies/${id}`);
+}
+
 // ── Inventory ──────────────────────────────────────────────────────────────
 
 export async function getInventoryForProduct(productId: number): Promise<InventoryDTO[]> {
@@ -50,4 +63,21 @@ export async function getProductInventorySummary(
 export async function getInventoryForPharmacy(pharmacyId: number): Promise<InventoryDTO[]> {
   const { data } = await api.get<InventoryDTO[]>(`/api/inventory/pharmacy/${pharmacyId}`);
   return data;
+}
+
+export async function createInventory(payload: InventoryWritePayload): Promise<InventoryDTO> {
+  const { data } = await api.post<InventoryDTO>("/api/inventory", payload);
+  return data;
+}
+
+export async function updateInventory(
+  id: number,
+  payload: InventoryWritePayload
+): Promise<InventoryDTO> {
+  const { data } = await api.put<InventoryDTO>(`/api/inventory/${id}`, payload);
+  return data;
+}
+
+export async function deleteInventory(id: number): Promise<void> {
+  await api.delete(`/api/inventory/${id}`);
 }

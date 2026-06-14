@@ -33,6 +33,12 @@ export function formatInstant(value: JavaInstant | null | undefined): string {
   return d ? d.toLocaleString() : "—";
 }
 
+/** Date-only variant — for LocalDate fields the backend serialises as [y, m, d]. */
+export function formatDate(value: JavaInstant | null | undefined): string {
+  const d = parseInstant(value);
+  return d ? d.toLocaleDateString() : "—";
+}
+
 export function toLocalDateTimeInputValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   return [

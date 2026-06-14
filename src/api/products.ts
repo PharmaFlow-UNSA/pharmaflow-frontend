@@ -126,3 +126,25 @@ export async function getSubstitutesForProduct(
   );
   return data;
 }
+
+export interface DrugInteractionPayload {
+  substanceAId: number;
+  substanceBId: number;
+  severity: string;
+  description: string;
+  clinicalRecommendation?: string;
+}
+
+export async function createDrugInteraction(
+  payload: DrugInteractionPayload
+): Promise<import("@/types/api").DrugInteractionDTO> {
+  const { data } = await api.post<import("@/types/api").DrugInteractionDTO>(
+    "/api/interactions",
+    payload
+  );
+  return data;
+}
+
+export async function deleteDrugInteraction(id: number): Promise<void> {
+  await api.delete(`/api/interactions/${id}`);
+}

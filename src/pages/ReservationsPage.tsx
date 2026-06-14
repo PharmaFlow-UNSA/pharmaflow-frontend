@@ -1,8 +1,8 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, CheckCircle2, ClipboardList, Clock, MapPin, PackageCheck, User } from "lucide-react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { getReservations } from "@/api/reservations";
+import { getReservations, patchReservationStatus } from "@/api/reservations";
 import { getCurrentUser } from "@/api/users";
 import { useAuth } from "@/auth/useAuth";
 import { AdminPageHeader, EmptyState } from "@/components/admin/AdminShell";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Label } from "@/components/ui/Label";
 import { Select } from "@/components/ui/Select";
+import { useToast } from "@/toast/useToast";
 import { formatInstant } from "@/lib/utils";
 import type { ReservationDTO, ReservationStatus } from "@/types/api";
 
@@ -23,9 +24,30 @@ const STATUS_VARIANT: Record<ReservationStatus, "info" | "warning" | "success" |
   EXPIRED: "danger",
 };
 
+const RES_NEXT_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
+  PENDING: ["READY", "CANCELLED"],
+  READY: ["COMPLETED", "CANCELLED"],
+  COMPLETED: [],
+  CANCELLED: [],
+  EXPIRED: [],
+};
+
+const RES_ACTION: Record<
+  ReservationStatus,
+  { label: string; variant: "default" | "outline" | "destructive" }
+> = {
+  PENDING: { label: "Reopen as pending", variant: "outline" },
+  READY: { label: "Mark ready", variant: "default" },
+  COMPLETED: { label: "Complete pickup", variant: "default" },
+  CANCELLED: { label: "Cancel", variant: "destructive" },
+  EXPIRED: { label: "Expire", variant: "destructive" },
+};
+
 export function ReservationsPage() {
   const [searchParams] = useSearchParams();
   const justCreatedId = searchParams.get("just");
+  const queryClient = useQueryClient();
+  const toast = useToast();
 
   const { hasRole } = useAuth();
   const isStaff = hasRole("ROLE_PHARMACIST", "ROLE_ADMIN");
@@ -58,6 +80,18 @@ export function ReservationsPage() {
 
   const reservations = query.data?.content ?? [];
   const stats = reservationStats(reservations);
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: ReservationStatus }) =>
+      patchReservationStatus(id, status),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["reservations"] });
+      toast.success(`Reservation #${updated.id} moved to ${updated.status.toLowerCase()}.`);
+    },
+    onError: () => {
+      toast.error("Could not update the reservation status.");
+    },
+  });
 
   return (
     <div className="space-y-7 animate-section">
@@ -131,6 +165,7 @@ export function ReservationsPage() {
       </Card>
 
       {query.isError && <ErrorMessage error={query.error} />}
+      {statusMutation.isError && <ErrorMessage error={statusMutation.error} />}
 
       {query.isLoading && (
         <div className="grid gap-4">
@@ -151,7 +186,13 @@ export function ReservationsPage() {
       {query.data && query.data.content.length > 0 && (
         <div className="space-y-4">
           {query.data.content.map((reservation) => (
-            <ReservationCard key={reservation.id} reservation={reservation} isStaff={isStaff} />
+            <ReservationCard
+              key={reservation.id}
+              reservation={reservation}
+              isStaff={isStaff}
+              busy={statusMutation.isPending}
+              onStatus={(status) => statusMutation.mutate({ id: reservation.id, status })}
+            />
           ))}
 
           <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm sm:flex-row sm:items-center sm:justify-between">
@@ -184,7 +225,17 @@ export function ReservationsPage() {
   );
 }
 
-function ReservationCard({ reservation, isStaff }: { reservation: ReservationDTO; isStaff: boolean }) {
+function ReservationCard({
+  reservation,
+  isStaff,
+  busy,
+  onStatus,
+}: {
+  reservation: ReservationDTO;
+  isStaff: boolean;
+  busy: boolean;
+  onStatus: (status: ReservationStatus) => void;
+}) {
   return (
     <Card className="rounded-[1.75rem] hover-lift">
       <CardContent className="p-5">
@@ -217,8 +268,23 @@ function ReservationCard({ reservation, isStaff }: { reservation: ReservationDTO
               </div>
             </div>
           </div>
-          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
-            Pickup status
+          <div className="flex flex-col gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
+            <span>Pickup status</span>
+            {isStaff && RES_NEXT_STATUSES[reservation.status].length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {RES_NEXT_STATUSES[reservation.status].map((next) => (
+                  <Button
+                    key={next}
+                    size="sm"
+                    variant={RES_ACTION[next].variant}
+                    disabled={busy}
+                    onClick={() => onStatus(next)}
+                  >
+                    {RES_ACTION[next].label}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

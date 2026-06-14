@@ -97,6 +97,9 @@ export function PrescriptionsPage() {
       uploadForm.reset();
       toast.success("Prescription uploaded for review.");
     },
+    onError: () => {
+      toast.error("Could not upload the prescription.");
+    },
   });
 
   // ── Review form ────────────────────────────────────────────────────────
@@ -111,6 +114,9 @@ export function PrescriptionsPage() {
       setReviewing(null);
       reviewForm.reset();
       toast.success(variables.values.status === "APPROVED" ? "Prescription approved." : "Prescription rejected.");
+    },
+    onError: () => {
+      toast.error("Could not update the prescription review.");
     },
   });
 

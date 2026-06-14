@@ -105,7 +105,10 @@ export function ReserveProductPage() {
       toast.success(`Reservation #${reservation.id} was created.`);
       navigate(`/reservations?just=${reservation.id}`, { replace: true });
     },
-    onError: (err) => setSubmitError(err),
+    onError: (err) => {
+      setSubmitError(err);
+      toast.error("Could not create the reservation.");
+    },
   });
 
   const onSubmit = (values: FormValues) => {

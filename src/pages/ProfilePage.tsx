@@ -31,8 +31,18 @@ const roleLabel: Record<Role, string> = {
 };
 
 const profileSchema = z.object({
-  firstName: z.string().min(2, "Enter at least 2 characters.").max(50, "Keep first name under 50 characters."),
-  lastName: z.string().min(2, "Enter at least 2 characters.").max(50, "Keep last name under 50 characters."),
+  firstName: z
+    .string()
+    .trim()
+    .min(2, "Enter at least 2 characters.")
+    .max(50, "Keep first name under 50 characters.")
+    .regex(/^[\p{L}\s'-]+$/u, "Only letters, spaces, hyphens and apostrophes."),
+  lastName: z
+    .string()
+    .trim()
+    .min(2, "Enter at least 2 characters.")
+    .max(50, "Keep last name under 50 characters.")
+    .regex(/^[\p{L}\s'-]+$/u, "Only letters, spaces, hyphens and apostrophes."),
 });
 type ProfileForm = z.infer<typeof profileSchema>;
 
@@ -211,6 +221,7 @@ export function ProfilePage() {
                   className="rounded-xl shadow-sm"
                   {...profileForm.register("firstName")}
                   aria-invalid={!!profileForm.formState.errors.firstName}
+                  disabled={updateMutation.isPending}
                 />
                 {profileForm.formState.errors.firstName && (
                   <p className="text-xs text-red-500">
@@ -226,6 +237,7 @@ export function ProfilePage() {
                   className="rounded-xl shadow-sm"
                   {...profileForm.register("lastName")}
                   aria-invalid={!!profileForm.formState.errors.lastName}
+                  disabled={updateMutation.isPending}
                 />
                 {profileForm.formState.errors.lastName && (
                   <p className="text-xs text-red-500">

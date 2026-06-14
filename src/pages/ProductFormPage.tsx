@@ -107,6 +107,9 @@ export function ProductFormPage() {
       toast.success(isEdit ? "Product updated." : "Product created.");
       navigate(`/products/${saved.id}`);
     },
+    onError: () => {
+      toast.error(isEdit ? "Could not update the product." : "Could not create the product.");
+    },
   });
 
   return (
