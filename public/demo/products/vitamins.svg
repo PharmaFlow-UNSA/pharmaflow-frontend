@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Vitamins product">
+  <rect width="640" height="480" fill="#f7fee7"/>
+  <rect x="170" y="90" width="300" height="300" rx="34" fill="#ffffff" stroke="#bbf7d0" stroke-width="4"/>
+  <rect x="210" y="144" width="220" height="92" rx="18" fill="#dcfce7"/>
+  <text x="320" y="204" text-anchor="middle" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#15803d">D3</text>
+  <circle cx="264" cy="292" r="24" fill="#facc15"/>
+  <circle cx="320" cy="292" r="24" fill="#fb923c"/>
+  <circle cx="376" cy="292" r="24" fill="#22c55e"/>
+</svg>

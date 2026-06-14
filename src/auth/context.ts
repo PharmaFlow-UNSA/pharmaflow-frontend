@@ -13,8 +13,8 @@ export interface AuthUser {
 export interface AuthState {
   user: AuthUser | null;
   loading: boolean;
-  login: (p: LoginPayload) => Promise<void>;
-  register: (p: RegisterPayload) => Promise<void>;
+  login: (p: LoginPayload) => Promise<AuthUser>;
+  register: (p: RegisterPayload) => Promise<AuthUser>;
   logout: () => Promise<void>;
   hasRole: (...roles: Role[]) => boolean;
 }

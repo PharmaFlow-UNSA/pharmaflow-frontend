@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Pain relief product">
+  <rect width="640" height="480" fill="#f8fafc"/>
+  <rect x="92" y="126" width="456" height="228" rx="22" fill="#ffffff" stroke="#cbd5e1" stroke-width="4"/>
+  <rect x="130" y="168" width="190" height="144" rx="16" fill="#dbeafe"/>
+  <circle cx="410" cy="240" r="58" fill="#fee2e2"/>
+  <path d="M410 202v76M372 240h76" stroke="#dc2626" stroke-width="18" stroke-linecap="round"/>
+  <text x="160" y="250" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#1e3a8a">Relief</text>
+</svg>

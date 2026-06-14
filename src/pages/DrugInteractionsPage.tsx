@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, Pill, Plus, Search, ShieldAlert, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import {
@@ -11,13 +11,16 @@ import {
   getSubstances,
 } from "@/api/products";
 import { useAuth } from "@/auth/useAuth";
+import { AdminPageHeader, EmptyState } from "@/components/admin/AdminShell";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
+import { useToast } from "@/toast/useToast";
 import type { SeverityLevel } from "@/types/api";
 
 const severityBadge: Record<SeverityLevel, "danger" | "warning" | "success"> = {
@@ -26,28 +29,31 @@ const severityBadge: Record<SeverityLevel, "danger" | "warning" | "success"> = {
   MINOR: "success",
 };
 
-const schema = z.object({
-  substanceAId: z.coerce.number().int().positive("Select substance A"),
-  substanceBId: z.coerce.number().int().positive("Select substance B"),
-  severity: z.enum(["MINOR", "MODERATE", "MAJOR"], { required_error: "Select severity" }),
-  description: z.string().min(10, "At least 10 characters").max(2000, "Max 2000 characters"),
-  clinicalRecommendation: z.string().max(2000).optional(),
-}).refine((d) => d.substanceAId !== d.substanceBId, {
-  message: "Substance A and B must be different",
-  path: ["substanceBId"],
-});
+const schema = z
+  .object({
+    substanceAId: z.coerce.number().int().positive("Select substance A"),
+    substanceBId: z.coerce.number().int().positive("Select substance B"),
+    severity: z.enum(["MINOR", "MODERATE", "MAJOR"]),
+    description: z.string().min(10, "At least 10 characters").max(2000, "Max 2000 characters"),
+    clinicalRecommendation: z.string().max(2000).optional(),
+  })
+  .refine((values) => values.substanceAId !== values.substanceBId, {
+    message: "Substance A and B must be different",
+    path: ["substanceBId"],
+  });
 
-type FormValues = z.infer<typeof schema>;
+type FormInput = z.input<typeof schema>;
+type FormValues = z.output<typeof schema>;
 
 export function DrugInteractionsPage() {
   const [search, setSearch] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<SeverityLevel | "">("");
   const [showModal, setShowModal] = useState(false);
-  const [addSuccess, setAddSuccess] = useState(false);
-  const [deleteSuccess, setDeleteSuccess] = useState(false);
   const { hasRole } = useAuth();
   const canWrite = hasRole("ROLE_PHARMACIST", "ROLE_ADMIN");
   const canDelete = hasRole("ROLE_ADMIN");
-  const qc = useQueryClient();
+  const queryClient = useQueryClient();
+  const toast = useToast();
 
   const query = useQuery({
     queryKey: ["interactions"],
@@ -62,155 +68,226 @@ export function DrugInteractionsPage() {
     staleTime: 300_000,
   });
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FormInput, unknown, FormValues>({
+    resolver: zodResolver(schema),
+  });
+
   const createMutation = useMutation({
     mutationFn: createDrugInteraction,
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["interactions"] });
+      queryClient.invalidateQueries({ queryKey: ["interactions"] });
       setShowModal(false);
       reset();
-      setAddSuccess(true);
-      setTimeout(() => setAddSuccess(false), 4000);
+      toast.success("Drug interaction added.");
+    },
+    onError: () => {
+      toast.error("Could not add the drug interaction.");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteDrugInteraction,
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["interactions"] });
-      setDeleteSuccess(true);
-      setTimeout(() => setDeleteSuccess(false), 4000);
+      queryClient.invalidateQueries({ queryKey: ["interactions"] });
+      toast.success("Interaction deleted.");
+    },
+    onError: () => {
+      toast.error("Could not delete the interaction.");
     },
   });
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-  });
+  const interactions = useMemo(() => query.data ?? [], [query.data]);
+  const filtered = useMemo(
+    () =>
+      interactions.filter((interaction) => {
+        const matchesSeverity = !severityFilter || interaction.severity === severityFilter;
+        if (!matchesSeverity) return false;
+        if (!search.trim()) return true;
+        const q = search.trim().toLowerCase();
+        return (
+          interaction.substanceAName?.toLowerCase().includes(q) ||
+          interaction.substanceBName?.toLowerCase().includes(q) ||
+          interaction.description?.toLowerCase().includes(q)
+        );
+      }),
+    [interactions, search, severityFilter]
+  );
 
-  const filtered = query.data?.filter((i) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      i.substanceAName?.toLowerCase().includes(q) ||
-      i.substanceBName?.toLowerCase().includes(q)
-    );
-  });
+  const stats = {
+    total: interactions.length,
+    major: interactions.filter((item) => item.severity === "MAJOR").length,
+    moderate: interactions.filter((item) => item.severity === "MODERATE").length,
+  };
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-            Drug Interactions
-          </h1>
-          <p className="mt-1 text-slate-600">
-            Clinical interaction database from{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm">
-              product-health-service
-            </code>
-            . Visible to doctors, pharmacists, and admins.
-          </p>
-        </div>
-        {canWrite && (
-          <Button onClick={() => setShowModal(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add interaction
-          </Button>
-        )}
-      </div>
+    <div className="space-y-7 animate-section">
+      <AdminPageHeader
+        eyebrow="Clinical workspace"
+        title="Interaction review"
+        description="Review medication interaction records available to doctors, pharmacists, and admins."
+        icon={ShieldAlert}
+        stats={[
+          { label: "Records", value: stats.total },
+          { label: "Major", value: stats.major },
+          { label: "Moderate", value: stats.moderate },
+        ]}
+        action={
+          canWrite ? (
+            <Button
+              type="button"
+              className="rounded-2xl bg-white text-brand-700 hover:bg-brand-50"
+              onClick={() => setShowModal(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add interaction
+            </Button>
+          ) : undefined
+        }
+      />
 
-      {addSuccess && (
-        <div className="mb-4 flex items-center gap-2 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-          <CheckCircle className="h-4 w-4 shrink-0" />
-          Drug interaction added successfully.
-        </div>
-      )}
-      {deleteSuccess && (
-        <div className="mb-4 flex items-center gap-2 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-          <CheckCircle className="h-4 w-4 shrink-0" />
-          Interaction deleted.
-        </div>
-      )}
-      {deleteMutation.isError && <ErrorMessage error={deleteMutation.error} className="mb-4" />}
-
-      <div className="mb-6 max-w-sm space-y-1.5">
-        <Label htmlFor="search">Search by substance name</Label>
-        <Input
-          id="search"
-          placeholder="e.g. Ibuprofen"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      <Card className="rounded-[1.75rem] shadow-sm">
+        <CardContent className="grid gap-4 p-5 md:grid-cols-[1fr_16rem] md:items-end">
+          <div className="space-y-1.5">
+            <Label htmlFor="interaction-search">Search interactions</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="interaction-search"
+                placeholder="Search by substance or description"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="pl-11"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="interaction-severity">Severity</Label>
+            <Select
+              id="interaction-severity"
+              value={severityFilter}
+              onChange={(event) => setSeverityFilter(event.target.value as SeverityLevel | "")}
+            >
+              <option value="">All severities</option>
+              <option value="MAJOR">Major</option>
+              <option value="MODERATE">Moderate</option>
+              <option value="MINOR">Minor</option>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {query.isError && <ErrorMessage error={query.error} />}
-      {query.isLoading && <p className="text-slate-500">Loading interactions…</p>}
+      {deleteMutation.isError && <ErrorMessage error={deleteMutation.error} />}
 
-      {filtered && filtered.length === 0 && !query.isLoading && (
-        <p className="text-slate-500">No interactions found.</p>
+      {query.isLoading && (
+        <div className="grid gap-4">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="h-36 animate-pulse rounded-[1.75rem] bg-slate-200/70" />
+          ))}
+        </div>
       )}
 
-      {filtered && filtered.length > 0 && (
-        <div className="space-y-3">
-          {filtered.map((i) => (
-            <div key={i.id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-sm font-medium text-slate-800">
-                    {i.substanceAName ?? "—"}
-                  </span>
-                  <span className="text-slate-400">+</span>
-                  <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-sm font-medium text-slate-800">
-                    {i.substanceBName ?? "—"}
-                  </span>
-                  <Badge variant={severityBadge[i.severity]}>{i.severity}</Badge>
+      {!query.isLoading && !query.isError && filtered.length === 0 && (
+        <EmptyState
+          title="No interactions found"
+          description="Adjust the search or severity filter to review another set of interaction records."
+          icon={ShieldAlert}
+        />
+      )}
+
+      {filtered.length > 0 && (
+        <div className="grid gap-4">
+          {filtered.map((interaction) => (
+            <Card key={interaction.id} className="group rounded-[1.75rem] hover-lift">
+              <CardContent className="p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex min-w-0 items-start gap-4">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 ring-1 ring-brand-100">
+                      <Pill className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <SubstancePill>{interaction.substanceAName ?? "Unknown substance"}</SubstancePill>
+                        <span className="text-sm font-bold text-slate-400">+</span>
+                        <SubstancePill>{interaction.substanceBName ?? "Unknown substance"}</SubstancePill>
+                      </div>
+                      {interaction.description && (
+                        <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-700">
+                          {interaction.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge variant={severityBadge[interaction.severity]} className="px-3 py-1 font-bold">
+                      {interaction.severity}
+                    </Badge>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm("Delete this interaction?")) {
+                            deleteMutation.mutate(interaction.id);
+                          }
+                        }}
+                        className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        aria-label="Delete interaction"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {canDelete && (
-                  <button
-                    onClick={() => { if (window.confirm("Delete this interaction?")) deleteMutation.mutate(i.id); }}
-                    className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                    aria-label="Delete interaction"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+
+                {interaction.clinicalRecommendation && (
+                  <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <p className="text-sm leading-6">
+                      <span className="font-bold">Recommendation: </span>
+                      {interaction.clinicalRecommendation}
+                    </p>
+                  </div>
                 )}
-              </div>
-              {i.description && <p className="text-sm text-slate-700">{i.description}</p>}
-              {i.clinicalRecommendation && (
-                <div className="mt-3 flex items-start gap-2 rounded-md bg-amber-50 p-3">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                  <p className="text-sm text-amber-800">
-                    <span className="font-medium">Recommendation: </span>
-                    {i.clinicalRecommendation}
-                  </p>
-                </div>
-              )}
-            </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
 
       {query.data && (
-        <p className="mt-4 text-sm text-slate-500">
-          {query.data.length} interactions in database
-          {search && ` · ${filtered?.length ?? 0} matching "${search}"`}
+        <p className="text-sm text-slate-500">
+          Showing {filtered.length} of {query.data.length} interaction records.
         </p>
       )}
 
-      {/* ── Add Interaction Modal ─────────────────────────────────────── */}
       <Modal
         open={showModal}
-        onClose={() => { setShowModal(false); reset(); }}
+        onClose={() => {
+          setShowModal(false);
+          reset();
+        }}
         title="Add drug interaction"
         className="max-w-lg"
       >
-        <form onSubmit={handleSubmit((values) => createMutation.mutate(values))} className="space-y-4">
+        <form
+          onSubmit={handleSubmit((values) => createMutation.mutate(values))}
+          className="space-y-4"
+          noValidate
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="substanceAId">Substance A *</Label>
               <Select id="substanceAId" {...register("substanceAId")} aria-invalid={!!errors.substanceAId}>
-                <option value="">Select…</option>
-                {substances.data?.map((s) => (
-                  <option key={s.id} value={s.id}>{s.commonName ?? s.inn}</option>
+                <option value="">Select...</option>
+                {substances.data?.map((substance) => (
+                  <option key={substance.id} value={substance.id}>
+                    {substance.commonName ?? substance.inn}
+                  </option>
                 ))}
               </Select>
               {errors.substanceAId && <p className="text-xs text-red-600">{errors.substanceAId.message}</p>}
@@ -218,9 +295,11 @@ export function DrugInteractionsPage() {
             <div className="space-y-1.5">
               <Label htmlFor="substanceBId">Substance B *</Label>
               <Select id="substanceBId" {...register("substanceBId")} aria-invalid={!!errors.substanceBId}>
-                <option value="">Select…</option>
-                {substances.data?.map((s) => (
-                  <option key={s.id} value={s.id}>{s.commonName ?? s.inn}</option>
+                <option value="">Select...</option>
+                {substances.data?.map((substance) => (
+                  <option key={substance.id} value={substance.id}>
+                    {substance.commonName ?? substance.inn}
+                  </option>
                 ))}
               </Select>
               {errors.substanceBId && <p className="text-xs text-red-600">{errors.substanceBId.message}</p>}
@@ -230,7 +309,7 @@ export function DrugInteractionsPage() {
           <div className="space-y-1.5">
             <Label htmlFor="severity">Severity *</Label>
             <Select id="severity" {...register("severity")} aria-invalid={!!errors.severity}>
-              <option value="">Select…</option>
+              <option value="">Select...</option>
               <option value="MINOR">Minor</option>
               <option value="MODERATE">Moderate</option>
               <option value="MAJOR">Major</option>
@@ -240,33 +319,55 @@ export function DrugInteractionsPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="description">Description *</Label>
-            <textarea id="description" rows={3}
+            <textarea
+              id="description"
+              rows={3}
               className="flex w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-              placeholder="Describe the clinical significance of this interaction…"
-              {...register("description")} aria-invalid={!!errors.description} />
+              placeholder="Describe the clinical significance of this interaction."
+              {...register("description")}
+              aria-invalid={!!errors.description}
+            />
             {errors.description && <p className="text-xs text-red-600">{errors.description.message}</p>}
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="clinicalRecommendation">Clinical recommendation</Label>
-            <textarea id="clinicalRecommendation" rows={2}
+            <textarea
+              id="clinicalRecommendation"
+              rows={2}
               className="flex w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-              placeholder="e.g. Avoid combination. Monitor INR if used together."
-              {...register("clinicalRecommendation")} />
+              placeholder="Example: avoid combination or monitor closely."
+              {...register("clinicalRecommendation")}
+            />
           </div>
 
           {createMutation.isError && <ErrorMessage error={createMutation.error} />}
 
-          <div className="flex gap-2 pt-1">
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Saving…" : "Add interaction"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => { setShowModal(false); reset(); }}>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowModal(false);
+                reset();
+              }}
+            >
               Cancel
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? "Saving..." : "Add interaction"}
             </Button>
           </div>
         </form>
       </Modal>
     </div>
+  );
+}
+
+function SubstancePill({ children }: { children: string }) {
+  return (
+    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-ink-800 ring-1 ring-slate-200">
+      {children}
+    </span>
   );
 }

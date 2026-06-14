@@ -1,6 +1,7 @@
 import { api } from "./client";
 import type {
   InventoryDTO,
+  InventorySummaryDTO,
   InventoryWritePayload,
   Page,
   PharmacyCreatePayload,
@@ -30,7 +31,6 @@ export async function createPharmacy(payload: PharmacyCreatePayload): Promise<Ph
   return data;
 }
 
-/** Full replace via PUT /api/pharmacies/{id} (backend takes a PharmacyCreateDTO). */
 export async function updatePharmacy(
   id: number,
   payload: PharmacyCreatePayload
@@ -47,6 +47,16 @@ export async function deletePharmacy(id: number): Promise<void> {
 
 export async function getInventoryForProduct(productId: number): Promise<InventoryDTO[]> {
   const { data } = await api.get<InventoryDTO[]>(`/api/inventory/product/${productId}`);
+  return data;
+}
+
+export async function getProductInventorySummary(
+  productIds: number[]
+): Promise<InventorySummaryDTO[]> {
+  if (productIds.length === 0) return [];
+  const { data } = await api.get<InventorySummaryDTO[]>("/api/inventory/product-summary", {
+    params: { productIds: productIds.join(",") },
+  });
   return data;
 }
 

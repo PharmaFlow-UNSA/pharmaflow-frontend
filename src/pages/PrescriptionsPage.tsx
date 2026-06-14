@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, FileText, Plus, ShieldCheck, XCircle } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import {
   createPrescription,
@@ -11,8 +11,8 @@ import {
 } from "@/api/prescriptions";
 import { getCurrentUser } from "@/api/users";
 import { useAuth } from "@/auth/useAuth";
+import { AdminPageHeader, EmptyState } from "@/components/admin/AdminShell";
 import { ErrorMessage } from "@/components/ErrorMessage";
-import { useToast } from "@/components/ui/Toast";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { formatInstant } from "@/lib/utils";
+import { useToast } from "@/toast/useToast";
 import {
   PRESCRIPTION_STATUS_LABELS,
   type PrescriptionDTO,
@@ -50,9 +51,9 @@ type ReviewForm = z.infer<typeof reviewSchema>;
 export function PrescriptionsPage() {
   const { hasRole } = useAuth();
   const isReviewer = hasRole("ROLE_DOCTOR", "ROLE_PHARMACIST", "ROLE_ADMIN");
+  const toast = useToast();
 
   const queryClient = useQueryClient();
-  const toast = useToast();
   const [statusFilter, setStatusFilter] = useState<PrescriptionStatus | "">("");
   const [page, setPage] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -94,26 +95,29 @@ export function PrescriptionsPage() {
       queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
       setUploadOpen(false);
       uploadForm.reset();
-      toast.success("Prescription uploaded — pending review.");
+      toast.success("Prescription uploaded for review.");
     },
-    onError: (err) => toast.error(err),
+    onError: () => {
+      toast.error("Could not upload the prescription.");
+    },
   });
 
   // ── Review form ────────────────────────────────────────────────────────
   const reviewForm = useForm<ReviewForm>({ resolver: zodResolver(reviewSchema) });
+  const reviewStatus = useWatch({ control: reviewForm.control, name: "status" });
 
   const reviewMutation = useMutation({
     mutationFn: ({ id, values }: { id: number; values: ReviewForm }) =>
       reviewPrescription(id, values.status, values.reviewerNotes),
-    onSuccess: (_data, { id, values }) => {
+    onSuccess: (_rx, variables) => {
       queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
       setReviewing(null);
       reviewForm.reset();
-      toast.success(
-        `Prescription #${id} ${values.status === "APPROVED" ? "approved" : "rejected"}.`
-      );
+      toast.success(variables.values.status === "APPROVED" ? "Prescription approved." : "Prescription rejected.");
     },
-    onError: (err) => toast.error(err),
+    onError: () => {
+      toast.error("Could not update the prescription review.");
+    },
   });
 
   function openReview(rx: PrescriptionDTO, status: "APPROVED" | "REJECTED") {
@@ -121,28 +125,44 @@ export function PrescriptionsPage() {
     reviewForm.reset({ status, reviewerNotes: "" });
   }
 
-  return (
-    <div>
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Prescriptions</h1>
-          <p className="mt-1 text-slate-600">
-            Backed by{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm">
-              order-prescription-service
-            </code>
-            . {isReviewer ? "Review and approve incoming prescriptions." : "Upload prescription images for products that need one."}
-          </p>
-        </div>
-        {!isReviewer && (
-          <Button onClick={() => setUploadOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Upload prescription
-          </Button>
-        )}
-      </div>
+  const prescriptions = listQuery.data?.content ?? [];
+  const approvedCount = prescriptions.filter((rx) => rx.status === "APPROVED").length;
+  const pendingCount = prescriptions.filter((rx) => rx.status === "PENDING").length;
+  const rejectedCount = prescriptions.filter((rx) => rx.status === "REJECTED").length;
 
-      <div className="mb-4 flex items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
+  return (
+    <div className="space-y-7 animate-section">
+      <AdminPageHeader
+        eyebrow={isReviewer ? "Prescription operations" : "My Care"}
+        title="Prescriptions"
+        description={
+          isReviewer
+            ? "Review uploaded prescriptions, approve or reject pending records, and keep fulfillment moving."
+            : "Upload prescription image links for products that require one."
+        }
+        icon={FileText}
+        tone={isReviewer ? "dark" : "light"}
+        stats={
+          listQuery.data
+            ? [
+                { label: "Total", value: listQuery.data.totalElements },
+                { label: "Approved here", value: approvedCount },
+                { label: "Pending here", value: pendingCount },
+                { label: "Rejected here", value: rejectedCount },
+              ]
+            : undefined
+        }
+        action={
+          !isReviewer ? (
+            <Button onClick={() => setUploadOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Upload prescription
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <div className="flex flex-col gap-4 rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end">
         <div className="flex-1 space-y-1.5">
           <Label htmlFor="status">Status</Label>
           <Select
@@ -161,31 +181,41 @@ export function PrescriptionsPage() {
         </div>
         {isReviewer && (
           <p className="text-xs text-slate-500">
-            Reviewer view — showing all users' prescriptions.
+            Reviewer view — showing prescriptions across accounts.
           </p>
         )}
       </div>
 
       {listQuery.isError && <ErrorMessage error={listQuery.error} />}
-      {listQuery.isLoading && <p className="text-slate-500">Loading prescriptions…</p>}
+      {listQuery.isLoading && (
+        <div className="grid gap-3">
+          {[...Array(3)].map((_, index) => (
+            <div key={index} className="h-28 skeleton-shimmer rounded-[1.75rem]" />
+          ))}
+        </div>
+      )}
 
       {listQuery.data && listQuery.data.content.length === 0 && (
-        <p className="text-slate-600">No prescriptions match these filters.</p>
+        <EmptyState
+          title="No prescriptions match these filters"
+          description="Try another status or upload a prescription."
+          icon={FileText}
+        />
       )}
 
       {listQuery.data && listQuery.data.content.length > 0 && (
         <div className="space-y-3">
           {listQuery.data.content.map((rx) => (
-            <Card key={rx.id}>
-              <CardHeader className="flex-row items-start justify-between space-y-0">
+            <Card key={rx.id} className="hover-lift hover:border-brand-200 hover:shadow-md">
+              <CardHeader className="flex-col gap-4 space-y-0 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex items-start gap-3">
-                  <div className="rounded-lg bg-brand-50 p-2 text-brand-700">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 ring-1 ring-brand-100">
                     <FileText className="h-5 w-5" />
                   </div>
                   <div>
-                    <CardTitle className="text-base">Prescription #{rx.id}</CardTitle>
+                    <CardTitle className="text-lg">Prescription #{rx.id}</CardTitle>
                     <p className="mt-0.5 text-sm text-slate-500">
-                      User {rx.userId} · uploaded {formatInstant(rx.uploadedAt)}
+                      Account record · uploaded {formatInstant(rx.uploadedAt)}
                     </p>
                   </div>
                 </div>
@@ -198,14 +228,14 @@ export function PrescriptionsPage() {
                   href={rx.imageUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-sm text-brand-700 hover:underline"
+                  className="inline-flex items-center rounded-2xl border border-brand-100 bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 >
                   View attached image
                 </a>
                 {rx.reviewedAt && (
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
                     Reviewed {formatInstant(rx.reviewedAt)}
-                    {rx.reviewerNotes ? ` — "${rx.reviewerNotes}"` : ""}
+                    {rx.reviewerNotes ? ` - "${rx.reviewerNotes}"` : ""}
                   </p>
                 )}
                 {isReviewer && rx.status === "PENDING" && (
@@ -232,7 +262,7 @@ export function PrescriptionsPage() {
             </Card>
           ))}
 
-          <div className="mt-4 flex items-center justify-between text-sm">
+          <div className="mt-5 flex flex-col gap-3 rounded-[1.5rem] border border-slate-200 bg-white p-4 text-sm shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <p className="text-slate-600">
               Page {listQuery.data.number + 1} of {Math.max(1, listQuery.data.totalPages)} ·{" "}
               {listQuery.data.totalElements} total
@@ -303,11 +333,7 @@ export function PrescriptionsPage() {
       <Modal
         open={!!reviewing}
         onClose={() => setReviewing(null)}
-        title={
-          reviewForm.watch("status") === "APPROVED"
-            ? "Approve prescription"
-            : "Reject prescription"
-        }
+        title={reviewStatus === "APPROVED" ? "Approve prescription" : "Reject prescription"}
       >
         {reviewing && (
           <form
@@ -317,15 +343,15 @@ export function PrescriptionsPage() {
             )}
             noValidate
           >
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
               <p className="font-medium text-slate-900">Prescription #{reviewing.id}</p>
-              <p className="text-slate-600">User {reviewing.userId}</p>
+              <p className="text-slate-600">Account record</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="reviewerNotes">Notes (optional)</Label>
               <textarea
                 id="reviewerNotes"
-                className="flex w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                className="flex w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 rows={3}
                 placeholder="Optional message to the patient…"
                 {...reviewForm.register("reviewerNotes")}
@@ -338,7 +364,7 @@ export function PrescriptionsPage() {
             </div>
             <p className="flex items-center gap-1 text-xs text-slate-500">
               <ShieldCheck className="h-3.5 w-3.5" />
-              Status will be set to <strong>{reviewForm.watch("status")}</strong> via JSON Patch.
+              Status will be set to <strong>{reviewStatus}</strong> via JSON Patch.
             </p>
             <ErrorMessage error={reviewMutation.error} />
             <div className="flex justify-end gap-2">

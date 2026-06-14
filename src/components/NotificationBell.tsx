@@ -1,7 +1,6 @@
 import { Bell, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn, formatInstant } from "@/lib/utils";
@@ -40,8 +39,15 @@ export function NotificationBell() {
         setOpen(false);
       }
     };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
     document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [open]);
 
   const handleMarkAsRead = async (notification: NotificationDTO) => {
@@ -66,7 +72,7 @@ export function NotificationBell() {
         variant="ghost"
         size="icon"
         type="button"
-        className="relative"
+        className="relative h-9 w-9 rounded-2xl"
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
@@ -80,11 +86,11 @@ export function NotificationBell() {
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-12 z-40 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-slate-200 bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div className="dropdown-enter absolute right-0 top-11 z-50 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-2xl shadow-slate-900/12">
+          <div className="flex items-center justify-between border-b border-slate-100 bg-brand-50/70 px-4 py-3">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">Notifications</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-sm font-extrabold text-ink-800">Notifications</h2>
+              <p className="mt-1 text-xs text-slate-600">
                 {unreadCount ? `${unreadCount} unread` : "All caught up"}
               </p>
             </div>
@@ -93,7 +99,7 @@ export function NotificationBell() {
               variant="ghost"
               size="icon"
               aria-label="Refresh notifications"
-              onClick={() => void refreshNotifications()}
+              onClick={() => void refreshNotifications({ notifyOnError: true })}
               disabled={loading}
             >
               {loading ? (
@@ -104,7 +110,7 @@ export function NotificationBell() {
             </Button>
           </div>
 
-          <div className="border-b border-slate-200 px-4 py-3">
+          <div className="border-b border-slate-100 px-4 py-3">
             {browserPermission === "granted" && (
               <p className="text-xs text-slate-600">Browser alerts are enabled for this device.</p>
             )}
@@ -126,7 +132,6 @@ export function NotificationBell() {
           </div>
 
           <div className="max-h-96 overflow-y-auto">
-            {error ? <ErrorMessage error={error} className="m-3" /> : null}
             {loading && !notifications.length && (
               <div className="space-y-3 p-4">
                 <div className="h-12 animate-pulse rounded-md bg-slate-100" />
@@ -135,9 +140,15 @@ export function NotificationBell() {
               </div>
             )}
             {!loading && !error && recentNotifications.length === 0 && (
-              <p className="px-4 py-8 text-center text-sm text-slate-500">
-                No notifications yet.
-              </p>
+              <div className="px-4 py-8 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
+                  <Bell className="h-5 w-5" />
+                </div>
+                <p className="mt-3 text-sm font-extrabold text-ink-800">No notifications yet</p>
+                <p className="mx-auto mt-1 max-w-56 text-xs leading-5 text-slate-500">
+                  New account alerts will appear here after the next refresh.
+                </p>
+              </div>
             )}
             {recentNotifications.map((notification) => (
               <NotificationPanelItem
@@ -152,7 +163,7 @@ export function NotificationBell() {
           <Link
             to="/notifications"
             onClick={() => setOpen(false)}
-            className="flex items-center justify-center gap-2 border-t border-slate-200 px-4 py-3 text-sm font-medium text-brand-700 hover:bg-brand-50"
+            className="flex items-center justify-center gap-2 border-t border-slate-100 px-4 py-4 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             View all notifications
             <ExternalLink className="h-4 w-4" />
@@ -183,7 +194,7 @@ function NotificationPanelItem({
         unread ? "bg-brand-50/60" : "bg-white"
       )}
     >
-      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-brand-700 ring-1 ring-slate-200">
+      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-700 ring-1 ring-slate-200">
         <NotificationTypeIcon type={notification.type} className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">

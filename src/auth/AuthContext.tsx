@@ -14,6 +14,7 @@ import {
   type RegisterPayload,
 } from "@/api/auth";
 import { setOnAuthLost, tokenStorage } from "@/api/client";
+import { notify } from "@/toast/toastBus";
 import type { AuthResponse, Role } from "@/types/api";
 import { AuthCtx, type AuthState, type AuthUser } from "./context";
 
@@ -53,8 +54,13 @@ function userFromStoredToken(): AuthUser | null {
   const claims = decodeJwt(token);
   if (!claims) return null;
   if (claims.exp * 1000 < Date.now()) {
-    tokenStorage.clear();
-    return null;
+      tokenStorage.clear();
+      notify({
+        variant: "warning",
+        title: "Session expired",
+        description: "Please sign in again to continue.",
+      });
+      return null;
   }
   return {
     userId: claims.userId,
@@ -74,26 +80,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setOnAuthLost(() => {
       setUser(null);
-      navigate("/login", { replace: true });
+      notify({
+        variant: "warning",
+        title: "Session expired",
+        description: "Please sign in again to continue.",
+      });
+      if (!isPublicStorefrontPath(window.location.pathname)) {
+        navigate("/login", { replace: true });
+      }
     });
     return () => setOnAuthLost(null);
   }, [navigate]);
 
-  const login = useCallback(async (p: LoginPayload): Promise<void> => {
+  const login = useCallback(async (p: LoginPayload): Promise<AuthUser> => {
     setLoading(true);
     try {
       const resp = await loginApi(p);
-      setUser(userFromAuthResponse(resp));
+      const authUser = userFromAuthResponse(resp);
+      setUser(authUser);
+      return authUser;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const register = useCallback(async (p: RegisterPayload): Promise<void> => {
+  const register = useCallback(async (p: RegisterPayload): Promise<AuthUser> => {
     setLoading(true);
     try {
       const resp = await registerApi(p);
-      setUser(userFromAuthResponse(resp));
+      const authUser = userFromAuthResponse(resp);
+      setUser(authUser);
+      return authUser;
     } finally {
       setLoading(false);
     }
@@ -123,4 +140,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
+}
+
+function isPublicStorefrontPath(pathname: string): boolean {
+  if (pathname === "/" || pathname === "/login" || pathname === "/register") return true;
+  if (pathname === "/products" || pathname === "/pharmacies" || pathname === "/symptoms" || pathname === "/cart") {
+    return true;
+  }
+  if (/^\/products\/\d+$/.test(pathname) || /^\/products\/\d+\/availability$/.test(pathname)) {
+    return true;
+  }
+  if (/^\/pharmacies\/\d+$/.test(pathname)) return true;
+  return false;
 }

@@ -176,6 +176,7 @@ export interface PharmacyDTO {
   phoneNumber: string;
   email: string;
   openingHours: string;
+  imageUrl?: string;
 }
 
 export interface InventoryDTO {
@@ -193,6 +194,15 @@ export interface InventoryWritePayload {
   reorderLevel?: number;
   lastRestocked?: string; // ISO date (yyyy-MM-dd) — backend LocalDate
   pharmacyId: number;
+}
+
+export interface InventorySummaryDTO {
+  productId: number;
+  totalQuantity: number;
+  pharmacyCount: number;
+  inStock: boolean;
+  lowestQuantity?: number;
+  lowStock?: boolean;
 }
 
 export type ReservationStatus =
@@ -238,14 +248,15 @@ export interface PharmacyCreatePayload {
   phoneNumber: string;
   email: string;
   openingHours: string;
+  imageUrl?: string;
 }
 
 export type DeliveryStatus =
-  | "PENDING"
-  | "DISPATCHED"
+  | "PREPARING"
   | "IN_TRANSIT"
   | "DELIVERED"
-  | "FAILED";
+  | "FAILED"
+  | "RETURNED";
 
 export interface DeliveryDTO {
   id: number;
@@ -258,11 +269,11 @@ export interface DeliveryDTO {
 }
 
 export const DELIVERY_STATUS_LABELS: Record<DeliveryStatus, string> = {
-  PENDING: "Pending",
-  DISPATCHED: "Dispatched",
+  PREPARING: "Preparing",
   IN_TRANSIT: "In transit",
   DELIVERED: "Delivered",
   FAILED: "Failed",
+  RETURNED: "Returned",
 };
 
 // ── order-prescription-service ─────────────────────────────────────────────
@@ -287,7 +298,7 @@ export interface PaymentDTO {
   id?: number;
   amount: number;
   method: "CARD" | "CASH" | "TRANSFER";
-  status: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+  status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
   transactionId?: string;
   paidAt?: string;
 }

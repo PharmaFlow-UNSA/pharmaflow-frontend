@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
+import { useToast } from "@/toast/useToast";
 import type {
   BloodType,
   FamilyMemberCreatePayload,
@@ -66,6 +67,7 @@ export function FamilyMembersPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState<FamilyMemberDTO | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const toast = useToast();
 
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ["currentUser"],
@@ -92,6 +94,7 @@ export function FamilyMembersPage() {
       void queryClient.invalidateQueries({ queryKey: ["currentUser"] });
       setShowModal(false);
       setEditingMember(null);
+      toast.success("Family member added.");
     },
   });
 
@@ -102,6 +105,7 @@ export function FamilyMembersPage() {
       void queryClient.invalidateQueries({ queryKey: ["familyMembers", user?.id] });
       setShowModal(false);
       setEditingMember(null);
+      toast.success("Family member updated.");
     },
   });
 
@@ -111,6 +115,7 @@ export function FamilyMembersPage() {
       void queryClient.invalidateQueries({ queryKey: ["familyMembers", user?.id] });
       void queryClient.invalidateQueries({ queryKey: ["currentUser"] });
       setDeleteConfirmId(null);
+      toast.success("Family member deleted.");
     },
   });
 
@@ -172,13 +177,25 @@ export function FamilyMembersPage() {
   const mutationError = createMutation.error ?? updateMutation.error;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Family Members</h1>
-        <p className="text-sm text-slate-500">
-          Track health profiles for your family members.
-        </p>
-      </div>
+    <div className="space-y-7 animate-section">
+      <section className="flex flex-col gap-5 rounded-[2rem] bg-[radial-gradient(circle_at_90%_15%,rgba(34,197,94,0.18),transparent_24%),linear-gradient(135deg,#eff6ff_0%,#f0fdf4_58%,#ffffff_100%)] p-7 shadow-sm ring-1 ring-sky-100 sm:flex-row sm:items-center sm:justify-between lg:p-8">
+        <div className="flex items-start gap-4">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-brand-700 shadow-sm ring-1 ring-brand-100">
+            <Users className="h-6 w-6" />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-700">My Care</p>
+            <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-ink-800">Family members</h1>
+            <p className="mt-2 max-w-2xl leading-7 text-slate-600">
+              Track health profiles for your family members.
+            </p>
+          </div>
+        </div>
+        <Button size="sm" onClick={openAdd}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Add family member
+        </Button>
+      </section>
 
       {isLoading && (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -191,7 +208,7 @@ export function FamilyMembersPage() {
 
       {!isLoading && !isError && (
         <>
-          <div className="flex justify-end">
+          <div className="hidden justify-end">
             <Button size="sm" onClick={openAdd}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Add family member
@@ -211,7 +228,7 @@ export function FamilyMembersPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {familyMembers.map((member) => (
-                <Card key={member.id} className="relative">
+                <Card key={member.id} className="relative hover-lift">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div>

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { useToast } from "@/toast/useToast";
 import type { Role } from "@/types/api";
 
 const roleBadgeVariant: Record<Role, "info" | "warning" | "success" | "danger"> = {
@@ -33,23 +34,23 @@ const profileSchema = z.object({
   firstName: z
     .string()
     .trim()
-    .min(2, "At least 2 characters")
-    .max(50, "Max 50 characters")
-    .regex(/^[\p{L}\s'-]+$/u, "Only letters, spaces, hyphens and apostrophes"),
+    .min(2, "Enter at least 2 characters.")
+    .max(50, "Keep first name under 50 characters.")
+    .regex(/^[\p{L}\s'-]+$/u, "Only letters, spaces, hyphens and apostrophes."),
   lastName: z
     .string()
     .trim()
-    .min(2, "At least 2 characters")
-    .max(50, "Max 50 characters")
-    .regex(/^[\p{L}\s'-]+$/u, "Only letters, spaces, hyphens and apostrophes"),
+    .min(2, "Enter at least 2 characters.")
+    .max(50, "Keep last name under 50 characters.")
+    .regex(/^[\p{L}\s'-]+$/u, "Only letters, spaces, hyphens and apostrophes."),
 });
 type ProfileForm = z.infer<typeof profileSchema>;
 
 const passwordSchema = z
   .object({
-    currentPassword: z.string().min(1, "Required"),
-    newPassword: z.string().min(6, "At least 6 characters"),
-    confirmPassword: z.string().min(1, "Required"),
+    currentPassword: z.string().min(1, "Enter your current password."),
+    newPassword: z.string().min(6, "Use at least 6 characters."),
+    confirmPassword: z.string().min(1, "Confirm your new password."),
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
     message: "Passwords do not match",
@@ -60,6 +61,7 @@ type PasswordForm = z.infer<typeof passwordSchema>;
 export function ProfilePage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [editingProfile, setEditingProfile] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
@@ -71,7 +73,6 @@ export function ProfilePage() {
   // ── Profile edit form ──────────────────────────────────────────────────
   const profileForm = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
-    mode: "onChange",
     values: userData ? { firstName: userData.firstName, lastName: userData.lastName } : undefined,
   });
 
@@ -80,13 +81,13 @@ export function ProfilePage() {
     onSuccess: (updated) => {
       queryClient.setQueryData(["currentUser"], updated);
       setEditingProfile(false);
+      toast.success("Profile updated.");
     },
   });
 
   // ── Password change form ───────────────────────────────────────────────
   const passwordForm = useForm<PasswordForm>({
     resolver: zodResolver(passwordSchema),
-    mode: "onBlur",
   });
 
   const passwordMutation = useMutation({
@@ -95,15 +96,32 @@ export function ProfilePage() {
     onSuccess: () => {
       setPasswordSuccess(true);
       passwordForm.reset();
+      toast.success("Password changed.");
       setTimeout(() => setPasswordSuccess(false), 4000);
     },
   });
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Account</h1>
-        <p className="mt-1 text-sm text-slate-500">
+    <div className="space-y-8 animate-section">
+      <section className="rounded-[2rem] bg-[radial-gradient(circle_at_85%_20%,rgba(34,197,94,0.24),transparent_24%),linear-gradient(135deg,#0f172a_0%,#13215f_62%,#0f766e_100%)] p-7 text-white shadow-lg shadow-slate-900/10 lg:p-8">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-brand-100 ring-1 ring-white/15">
+            <User className="h-8 w-8" />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-100">Account</p>
+            <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">
+              {userData ? `${userData.firstName} ${userData.lastName}` : "Your profile"}
+            </h1>
+            <p className="mt-2 max-w-2xl leading-7 text-slate-200">
+              Manage account identity and password settings.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div className="max-w-4xl">
+        <p className="text-sm text-slate-500">
           Manage your identity. Health data is on the{" "}
           <a href="/health" className="font-medium text-brand-600 hover:underline">
             Health
@@ -113,7 +131,8 @@ export function ProfilePage() {
       </div>
 
       {/* ── Identity card ───────────────────────────────────────────────── */}
-      <Card>
+      <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <Card className="rounded-[1.75rem]">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
@@ -199,6 +218,7 @@ export function ProfilePage() {
                 <Label htmlFor="firstName">First name</Label>
                 <Input
                   id="firstName"
+                  className="rounded-xl shadow-sm"
                   {...profileForm.register("firstName")}
                   aria-invalid={!!profileForm.formState.errors.firstName}
                   disabled={updateMutation.isPending}
@@ -214,6 +234,7 @@ export function ProfilePage() {
                 <Label htmlFor="lastName">Last name</Label>
                 <Input
                   id="lastName"
+                  className="rounded-xl shadow-sm"
                   {...profileForm.register("lastName")}
                   aria-invalid={!!profileForm.formState.errors.lastName}
                   disabled={updateMutation.isPending}
@@ -248,11 +269,11 @@ export function ProfilePage() {
       </Card>
 
       {/* ── Change password card ─────────────────────────────────────────── */}
-      <Card>
+      <Card className="rounded-[1.75rem]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <KeyRound className="h-4 w-4" />
-            Change Password
+            Change password
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -272,10 +293,10 @@ export function ProfilePage() {
               <Input
                 id="currentPassword"
                 type="password"
+                className="rounded-xl shadow-sm"
                 autoComplete="current-password"
                 {...passwordForm.register("currentPassword")}
                 aria-invalid={!!passwordForm.formState.errors.currentPassword}
-                disabled={passwordMutation.isPending}
               />
               {passwordForm.formState.errors.currentPassword && (
                 <p className="text-xs text-red-500">
@@ -289,10 +310,10 @@ export function ProfilePage() {
               <Input
                 id="newPassword"
                 type="password"
+                className="rounded-xl shadow-sm"
                 autoComplete="new-password"
                 {...passwordForm.register("newPassword")}
                 aria-invalid={!!passwordForm.formState.errors.newPassword}
-                disabled={passwordMutation.isPending}
               />
               {passwordForm.formState.errors.newPassword && (
                 <p className="text-xs text-red-500">
@@ -306,10 +327,10 @@ export function ProfilePage() {
               <Input
                 id="confirmPassword"
                 type="password"
+                className="rounded-xl shadow-sm"
                 autoComplete="new-password"
                 {...passwordForm.register("confirmPassword")}
                 aria-invalid={!!passwordForm.formState.errors.confirmPassword}
-                disabled={passwordMutation.isPending}
               />
               {passwordForm.formState.errors.confirmPassword && (
                 <p className="text-xs text-red-500">
@@ -320,12 +341,13 @@ export function ProfilePage() {
 
             {passwordMutation.isError && <ErrorMessage error={passwordMutation.error} />}
 
-            <Button type="submit" disabled={passwordMutation.isPending}>
+            <Button type="submit" className="rounded-xl" disabled={passwordMutation.isPending}>
               {passwordMutation.isPending ? "Updating…" : "Update password"}
             </Button>
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Cold care product">
+  <rect width="640" height="480" fill="#eff6ff"/>
+  <rect x="120" y="106" width="400" height="268" rx="30" fill="#ffffff" stroke="#bfdbfe" stroke-width="4"/>
+  <path d="M222 250c36-64 160-64 196 0" fill="none" stroke="#2563eb" stroke-width="20" stroke-linecap="round"/>
+  <circle cx="252" cy="205" r="20" fill="#60a5fa"/>
+  <circle cx="388" cy="205" r="20" fill="#60a5fa"/>
+  <text x="320" y="318" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#1d4ed8">Cold Care</text>
+</svg>

@@ -1,10 +1,11 @@
-import { Loader2 } from "lucide-react";
+import { Bell, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { getNotificationTriggers } from "@/api/notifications";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { showApiErrorToast } from "@/lib/errors";
 import { cn, formatInstant } from "@/lib/utils";
 import {
   canMarkNotificationRead,
@@ -74,6 +75,7 @@ export function NotificationsPage() {
       setTriggers(await getNotificationTriggers(notification.id));
     } catch (nextError) {
       setTriggerError(nextError);
+      showApiErrorToast(nextError, "Could not load notification history. Please try again.");
     } finally {
       setTriggersLoading(false);
     }
@@ -93,28 +95,33 @@ export function NotificationsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="space-y-8 animate-section">
+      <section className="flex flex-wrap items-start justify-between gap-4 rounded-[2rem] border border-brand-100 bg-[radial-gradient(circle_at_88%_18%,rgba(14,165,233,0.16),transparent_28%),linear-gradient(135deg,#f0fdf4_0%,#ffffff_58%,#eff8ff_100%)] p-7 shadow-sm lg:p-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+          <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Account alerts</p>
+          <h1 className="mt-2 flex items-center gap-3 text-4xl font-extrabold tracking-tight text-ink-800">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-brand-700 shadow-sm ring-1 ring-brand-100">
+              <Bell className="h-6 w-6" />
+            </span>
             Notifications
           </h1>
-          <p className="mt-1 text-slate-600">
-            Review account alerts from reminders, refills, recalls, chat, and system events.
+          <p className="mt-3 max-w-2xl leading-7 text-slate-600">
+            Review updates about your care activity.
           </p>
         </div>
         <Button
           type="button"
           variant="outline"
-          onClick={() => void refreshNotifications()}
+          className="rounded-xl bg-white"
+          onClick={() => void refreshNotifications({ notifyOnError: true })}
           disabled={loading}
         >
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Refresh
         </Button>
-      </div>
+      </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-slate-900">
@@ -138,7 +145,7 @@ export function NotificationsPage() {
       </section>
 
       <section className="space-y-3">
-        <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-2">
+        <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           {STATUS_FILTERS.map((filter) => (
             <FilterButton
               key={filter.value}
@@ -150,7 +157,7 @@ export function NotificationsPage() {
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-2">
+        <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <FilterButton active={typeFilter === "ALL"} onClick={() => setTypeFilter("ALL")}>
             All types
           </FilterButton>
@@ -169,16 +176,17 @@ export function NotificationsPage() {
       {error ? <ErrorMessage error={error} /> : null}
       {loading && notifications.length === 0 && (
         <div className="space-y-3">
-          <div className="h-20 animate-pulse rounded-lg bg-slate-100" />
-          <div className="h-20 animate-pulse rounded-lg bg-slate-100" />
-          <div className="h-20 animate-pulse rounded-lg bg-slate-100" />
+          <div className="h-24 rounded-2xl skeleton-shimmer" />
+          <div className="h-24 rounded-2xl skeleton-shimmer" />
+          <div className="h-24 rounded-2xl skeleton-shimmer" />
         </div>
       )}
       {!loading && filteredNotifications.length === 0 && (
-        <div className="rounded-lg border border-slate-200 bg-white px-6 py-12 text-center">
-          <p className="font-medium text-slate-900">No notifications match these filters.</p>
+        <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
+          <Bell className="mx-auto h-10 w-10 text-slate-400" />
+          <p className="mt-4 font-extrabold text-ink-800">No notifications match these filters.</p>
           <p className="mt-1 text-sm text-slate-500">
-            New account alerts will appear here when the backend creates them.
+            New account alerts will appear here.
           </p>
         </div>
       )}
@@ -253,11 +261,11 @@ function NotificationRow({
   return (
     <article
       className={cn(
-        "flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-start",
+        "flex flex-col gap-4 rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-start",
         unread && "border-brand-200 bg-brand-50/40"
       )}
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-brand-700 ring-1 ring-slate-200">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-700 ring-1 ring-slate-200">
         <NotificationTypeIcon type={notification.type} className="h-5 w-5" />
       </div>
       <div className="min-w-0 flex-1">
@@ -317,19 +325,29 @@ function NotificationDetailsModal({
     canMarkNotificationRead(notification.status) && notification.status !== "READ";
 
   return (
-    <Modal open={Boolean(notification)} onClose={onClose} title="Notification details">
+    <Modal
+      open={Boolean(notification)}
+      onClose={onClose}
+      title="Notification details"
+      className="max-w-3xl rounded-[1.75rem]"
+    >
       <div className="space-y-5">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="rounded-3xl border border-brand-100 bg-brand-50/60 p-5">
+          <div className="flex flex-wrap items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-700 ring-1 ring-brand-100">
+              <NotificationTypeIcon type={notification.type} className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold text-slate-900">{notification.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{notification.message}</p>
+            </div>
             <Badge variant={NOTIFICATION_STATUS_VARIANTS[notification.status]}>
               {NOTIFICATION_STATUS_LABELS[notification.status]}
             </Badge>
           </div>
-          <p className="mt-2 text-sm text-slate-700">{notification.message}</p>
         </div>
 
-        <dl className="grid grid-cols-2 gap-3 text-sm">
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <DetailTerm label="Type" value={NOTIFICATION_TYPE_LABELS[notification.type]} />
           <DetailTerm label="Channel" value={notification.channel} />
           <DetailTerm label="Created" value={formatInstant(notification.createdAt)} />
@@ -353,7 +371,7 @@ function NotificationDetailsModal({
               {triggers.map((trigger) => (
                 <div
                   key={trigger.id}
-                  className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
                 >
                   <p className="font-medium text-slate-800">
                     {NOTIFICATION_TRIGGER_LABELS[trigger.triggerSource]}

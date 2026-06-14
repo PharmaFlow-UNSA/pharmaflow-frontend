@@ -1,10 +1,11 @@
 import { useIsFetching, useIsMutating } from "@tanstack/react-query";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { defaultPathForRoles } from "@/auth/defaultPath";
 import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { useAuth } from "@/auth/useAuth";
-import { Spinner } from "@/components/ui/Spinner";
 import { Layout } from "@/components/Layout";
+import { Spinner } from "@/components/ui/Spinner";
 import { NotificationProvider } from "@/notifications/NotificationProvider";
 import { AdminFaqLogsPage } from "@/pages/AdminFaqLogsPage";
 import { AdminFaqsPage } from "@/pages/AdminFaqsPage";
@@ -18,6 +19,8 @@ import { FraudPage } from "@/pages/FraudPage";
 import { HealthPage } from "@/pages/HealthPage";
 import { HomePage } from "@/pages/HomePage";
 import { LoginPage } from "@/pages/LoginPage";
+import { CartPage } from "@/pages/CartPage";
+import { MyCarePage } from "@/pages/MyCarePage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 import { OrderDetailPage } from "@/pages/OrderDetailPage";
@@ -37,7 +40,9 @@ import { ProfilePage } from "@/pages/ProfilePage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { ReservationsPage } from "@/pages/ReservationsPage";
 import { ReserveProductPage } from "@/pages/ReserveProductPage";
+import { StaffDashboardPage } from "@/pages/StaffDashboardPage";
 import { SymptomsPage } from "@/pages/SymptomsPage";
+import { SymptomsTeaserPage } from "@/pages/SymptomsTeaserPage";
 import { TherapyRemindersPage } from "@/pages/TherapyRemindersPage";
 import { TherapiesPage } from "@/pages/TherapiesPage";
 
@@ -45,17 +50,14 @@ function GlobalSpinner() {
   const isFetching = useIsFetching();
   const isMutating = useIsMutating();
   const { loading: authLoading } = useAuth();
+
   if (isFetching === 0 && isMutating === 0 && !authLoading) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm">
       <Spinner className="h-10 w-10" />
     </div>
   );
-}
-
-function RootPage() {
-  const { hasRole } = useAuth();
-  return hasRole("ROLE_ADMIN") ? <AdminPage /> : <HomePage />;
 }
 
 export function App() {
@@ -64,19 +66,29 @@ export function App() {
       <NotificationProvider>
         <GlobalSpinner />
         <Routes>
-          {/* Public */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="*" element={<NotFoundPage />} />
 
-          {/* Protected (JWT required) */}
-          <Route element={<ProtectedRoute />}>
-            <Route element={<Layout />}>
-              <Route index element={<RootPage />} />
+          <Route element={<Layout />}>
+            {/* Public storefront */}
+            <Route index element={<RoleHomePage />} />
+            <Route path="products" element={<ProductsPage />} />
+            <Route path="products/:productId" element={<ProductDetailPage />} />
+            <Route path="products/:productId/availability" element={<ProductAvailabilityPage />} />
+            <Route path="pharmacies" element={<PharmaciesPage />} />
+            <Route path="pharmacies/:pharmacyId" element={<PharmacyDetailPage />} />
+            <Route path="symptoms" element={<SymptomsTeaserPage />} />
+            <Route path="cart" element={<CartPage />} />
 
-              {/* Catalog */}
-              <Route path="products" element={<ProductsPage />} />
-              <Route path="products/:productId/availability" element={<ProductAvailabilityPage />} />
+            {/* Protected (JWT required) */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="my-care" element={<MyCarePage />} />
+              <Route
+                path="dashboard"
+                element={<ProtectedRoute roles={["ROLE_DOCTOR", "ROLE_PHARMACIST"]} />}
+              >
+                <Route index element={<StaffDashboardPage />} />
+              </Route>
               <Route
                 path="products/new"
                 element={<ProtectedRoute roles={["ROLE_PHARMACIST", "ROLE_ADMIN"]} />}
@@ -90,7 +102,12 @@ export function App() {
               >
                 <Route index element={<ProductFormPage />} />
               </Route>
-              <Route path="categories" element={<CategoriesPage />} />
+              <Route
+                path="categories"
+                element={<ProtectedRoute roles={["ROLE_PHARMACIST", "ROLE_ADMIN"]} />}
+              >
+                <Route index element={<CategoriesPage />} />
+              </Route>
               <Route
                 path="interactions"
                 element={<ProtectedRoute roles={["ROLE_DOCTOR", "ROLE_PHARMACIST", "ROLE_ADMIN"]} />}
@@ -106,14 +123,11 @@ export function App() {
               <Route path="prescriptions" element={<PrescriptionsPage />} />
               <Route path="auto-refills" element={<AutoRefillsPage />} />
 
-              {/* Pharmacy & Inventory Service */}
-              <Route path="pharmacies" element={<PharmaciesPage />} />
-              <Route path="pharmacies/:pharmacyId" element={<PharmacyDetailPage />} />
               <Route path="reservations" element={<ReservationsPage />} />
               <Route path="deliveries" element={<DeliveriesPage />} />
 
               {/* Smart Features Service */}
-              <Route path="symptoms" element={<SymptomsPage />} />
+              <Route path="symptoms/finder" element={<SymptomsPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
 
               {/* User & Health Service */}
@@ -133,8 +147,20 @@ export function App() {
               </Route>
             </Route>
           </Route>
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </NotificationProvider>
     </AuthProvider>
   );
+}
+
+function RoleHomePage() {
+  const { user } = useAuth();
+
+  if (!user) return <HomePage />;
+
+  const defaultPath = defaultPathForRoles(user.roles);
+  if (defaultPath !== "/") return <Navigate to={defaultPath} replace />;
+
+  return <HomePage />;
 }

@@ -1,14 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, FileText, Package, SlidersHorizontal, Truck } from "lucide-react";
+import { CreditCard, FileText, MapPin, Package, SlidersHorizontal, Truck } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { getDeliveriesByOrderId } from "@/api/deliveries";
 import { getOrderById, patchOrderStatus } from "@/api/orders";
 import { useAuth } from "@/auth/useAuth";
 import { ErrorMessage } from "@/components/ErrorMessage";
-import { useToast } from "@/components/ui/Toast";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { useToast } from "@/toast/useToast";
 import { formatInstant } from "@/lib/utils";
 import {
   DELIVERY_STATUS_LABELS,
@@ -25,16 +25,13 @@ const ORDER_STATUS_VARIANT: Record<OrderStatus, "info" | "warning" | "success" |
 };
 
 const DELIVERY_STATUS_VARIANT: Record<DeliveryStatus, "info" | "warning" | "success" | "danger"> = {
-  PENDING: "warning",
-  DISPATCHED: "info",
+  PREPARING: "warning",
   IN_TRANSIT: "info",
   DELIVERED: "success",
   FAILED: "danger",
+  RETURNED: "warning",
 };
 
-// Logical next statuses a staff member can move an order to. The backend
-// applies the change via JSON Patch (no rigid state machine), so this map
-// keeps the UI offering only sensible forward/cancel transitions.
 const ORDER_NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ["CONFIRMED", "CANCELLED"],
   CONFIRMED: ["SHIPPED", "CANCELLED"],
@@ -57,10 +54,9 @@ const ORDER_ACTION: Record<
 export function OrderDetailPage() {
   const { orderId } = useParams();
   const id = Number(orderId);
-
   const queryClient = useQueryClient();
-  const toast = useToast();
   const { hasRole } = useAuth();
+  const toast = useToast();
   const isStaff = hasRole("ROLE_PHARMACIST", "ROLE_ADMIN");
 
   const orderQuery = useQuery({
@@ -69,60 +65,71 @@ export function OrderDetailPage() {
     enabled: Number.isFinite(id) && id > 0,
   });
 
-  const statusMutation = useMutation({
-    mutationFn: (status: OrderStatus) => patchOrderStatus(id, status),
-    onSuccess: (_data, status) => {
-      queryClient.invalidateQueries({ queryKey: ["order", id] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      toast.success(`Order #${id} marked ${status}.`);
-    },
-    onError: (err) => toast.error(err),
-  });
-
   const deliveriesQuery = useQuery({
     queryKey: ["deliveries", "order", id],
     queryFn: () => getDeliveriesByOrderId(id),
     enabled: Number.isFinite(id) && id > 0,
   });
 
-  return (
-    <div>
-      <Link
-        to="/orders"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-brand-700 hover:underline"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to orders
-      </Link>
+  const statusMutation = useMutation({
+    mutationFn: (status: OrderStatus) => patchOrderStatus(id, status),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["order", id], updated);
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast.success(`Order #${updated.id} moved to ${updated.status.toLowerCase()}.`);
+    },
+    onError: () => {
+      toast.error("Could not update the order status.");
+    },
+  });
 
+  return (
+    <div className="space-y-7 animate-section">
       {orderQuery.isError && <ErrorMessage error={orderQuery.error} />}
-      {orderQuery.isLoading && <p className="text-slate-500">Loading order…</p>}
+      {orderQuery.isLoading && (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_26rem]">
+          <div className="h-80 skeleton-shimmer rounded-[2rem]" />
+          <div className="h-80 skeleton-shimmer rounded-[2rem]" />
+        </div>
+      )}
 
       {orderQuery.data && (
         <>
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900">Order #{orderQuery.data.id}</h1>
-              <p className="mt-1 text-sm text-slate-500">
-                Placed by user {orderQuery.data.userId} · {formatInstant(orderQuery.data.createdAt)}
-              </p>
+          <section className="overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_88%_18%,rgba(34,197,94,0.22),transparent_24%),linear-gradient(135deg,#0f172a_0%,#172554_66%,#0f766e_100%)] p-7 text-white shadow-lg shadow-slate-900/10 lg:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand-100 ring-1 ring-white/15">
+                  Order details
+                </p>
+                <h1 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
+                  Order #{orderQuery.data.id}
+                </h1>
+                <p className="mt-3 max-w-2xl leading-7 text-slate-200">
+                  Placed by user {orderQuery.data.userId} · {formatInstant(orderQuery.data.createdAt)}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/10 px-4 py-3 text-left ring-1 ring-white/15 lg:text-right">
+                <p className="text-xs font-semibold uppercase tracking-wider text-brand-100">Total</p>
+                <div className="mt-1 flex flex-wrap items-center gap-3 lg:justify-end">
+                  <span className="text-3xl font-extrabold">
+                    {Number(orderQuery.data.totalAmount).toFixed(2)} KM
+                  </span>
+                  <Badge variant={ORDER_STATUS_VARIANT[orderQuery.data.status]}>
+                    {orderQuery.data.status}
+                  </Badge>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-2xl font-semibold text-slate-900">
-                {Number(orderQuery.data.totalAmount).toFixed(2)} KM
-              </span>
-              <Badge variant={ORDER_STATUS_VARIANT[orderQuery.data.status]}>
-                {orderQuery.data.status}
-              </Badge>
-            </div>
-          </div>
+          </section>
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            {/* Items column ─────────────────────────────────────────────── */}
-            <div className="lg:col-span-2">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start">
+            <div className="space-y-5">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Package className="h-4 w-4" />
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 ring-1 ring-brand-100">
+                      <Package className="h-4 w-4" />
+                    </span>
                     Items ({orderQuery.data.orderItems?.length ?? 0})
                   </CardTitle>
                 </CardHeader>
@@ -142,12 +149,12 @@ export function OrderDetailPage() {
                           key={item.id ?? `${item.productId}-${item.productName}`}
                           className="border-b border-slate-100 last:border-0"
                         >
-                          <td className="py-2 text-slate-900">{item.productName}</td>
-                          <td className="py-2 text-right text-slate-700">{item.quantity}</td>
-                          <td className="py-2 text-right text-slate-700">
+                          <td className="py-3 font-medium text-slate-900">{item.productName}</td>
+                          <td className="py-3 text-right text-slate-700">{item.quantity}</td>
+                          <td className="py-3 text-right text-slate-700">
                             {Number(item.unitPrice).toFixed(2)} KM
                           </td>
-                          <td className="py-2 text-right font-medium text-slate-900">
+                          <td className="py-3 text-right font-semibold text-slate-900">
                             {(Number(item.unitPrice) * item.quantity).toFixed(2)} KM
                           </td>
                         </tr>
@@ -157,11 +164,12 @@ export function OrderDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* Deliveries ──────────────────────────────────────────── */}
-              <Card className="mt-4">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Truck className="h-4 w-4" />
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
+                      <Truck className="h-4 w-4" />
+                    </span>
                     Deliveries
                   </CardTitle>
                 </CardHeader>
@@ -177,7 +185,7 @@ export function OrderDetailPage() {
                       {deliveriesQuery.data.map((d) => (
                         <li
                           key={d.id}
-                          className="flex items-center justify-between rounded-md border border-slate-200 p-3"
+                          className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:items-center sm:justify-between"
                         >
                           <div>
                             <p className="font-medium text-slate-900">
@@ -199,22 +207,23 @@ export function OrderDetailPage() {
               </Card>
             </div>
 
-            {/* Sidebar ───────────────────────────────────────────────────── */}
-            <div className="space-y-4">
+            <aside className="space-y-5 lg:sticky lg:top-24">
               {isStaff && ORDER_NEXT_STATUSES[orderQuery.data.status].length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <SlidersHorizontal className="h-4 w-4" />
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-50 text-amber-700 ring-1 ring-amber-100">
+                        <SlidersHorizontal className="h-4 w-4" />
+                      </span>
                       Update status
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                    <div className="mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                       <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Current status
                       </span>
-                      <Badge variant={ORDER_STATUS_VARIANT[orderQuery.data.status]} className="text-sm">
+                      <Badge variant={ORDER_STATUS_VARIANT[orderQuery.data.status]}>
                         {orderQuery.data.status}
                       </Badge>
                     </div>
@@ -240,7 +249,12 @@ export function OrderDetailPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Shipping</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 ring-1 ring-brand-100">
+                      <MapPin className="h-4 w-4" />
+                    </span>
+                    Shipping
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm">
                   <p className="text-slate-900">{orderQuery.data.shippingAddress}</p>
@@ -250,7 +264,12 @@ export function OrderDetailPage() {
               {orderQuery.data.payment && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Payment</CardTitle>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-50 text-slate-700 ring-1 ring-slate-200">
+                        <CreditCard className="h-4 w-4" />
+                      </span>
+                      Payment
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-1 text-sm">
                     <div className="flex justify-between">
@@ -288,8 +307,10 @@ export function OrderDetailPage() {
               {orderQuery.data.prescriptionId && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <FileText className="h-4 w-4" />
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 ring-1 ring-brand-100">
+                        <FileText className="h-4 w-4" />
+                      </span>
                       Prescription
                     </CardTitle>
                   </CardHeader>
@@ -303,7 +324,7 @@ export function OrderDetailPage() {
                   </CardContent>
                 </Card>
               )}
-            </div>
+            </aside>
           </div>
         </>
       )}

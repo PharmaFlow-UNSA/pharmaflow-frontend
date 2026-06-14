@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { cn, formatInstant, parseInstant } from "@/lib/utils";
+import { useToast } from "@/toast/useToast";
 import type {
   ProductDTO,
   TherapyReminderDTO,
@@ -74,6 +75,7 @@ export function TherapyRemindersPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingReminder, setEditingReminder] = useState<TherapyReminderDTO | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const toast = useToast();
 
   const currentUser = useQuery({
     queryKey: ["currentUser"],
@@ -152,6 +154,7 @@ export function TherapyRemindersPage() {
       closeModal();
       void queryClient.invalidateQueries({ queryKey: ["therapyReminders"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success("Therapy reminder created.");
     },
   });
 
@@ -162,6 +165,7 @@ export function TherapyRemindersPage() {
       closeModal();
       void queryClient.invalidateQueries({ queryKey: ["therapyReminders"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success("Therapy reminder updated.");
     },
   });
 
@@ -171,6 +175,7 @@ export function TherapyRemindersPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["therapyReminders"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success("Reminder status updated.");
     },
   });
 
@@ -180,6 +185,7 @@ export function TherapyRemindersPage() {
       setDeleteConfirmId(null);
       void queryClient.invalidateQueries({ queryKey: ["therapyReminders"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success("Therapy reminder deleted.");
     },
   });
 
@@ -214,7 +220,7 @@ export function TherapyRemindersPage() {
   if (targets.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader onAdd={undefined} />
+        <PageHeader onAdd={undefined} activeCount={0} pausedCount={0} nextReminderLabel="None scheduled" />
         <EmptyState
           title="Health profile required"
           description="Create your health profile, or add a family member with a health profile, before reminders can be managed."
@@ -224,8 +230,13 @@ export function TherapyRemindersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader onAdd={() => setShowModal(true)} />
+    <div className="space-y-8">
+      <PageHeader
+        onAdd={() => setShowModal(true)}
+        activeCount={activeCount}
+        pausedCount={pausedCount}
+        nextReminderLabel={nextReminder ? formatInstant(nextReminder.nextReminderAt) : "None scheduled"}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="Active" value={String(activeCount)} icon={AlarmClock} />
@@ -271,11 +282,13 @@ export function TherapyRemindersPage() {
         <EmptyState
           title="No reminders for this profile"
           description="Add a therapy reminder to schedule medication notifications."
+          actionLabel="Add reminder"
+          onAction={() => setShowModal(true)}
         />
       )}
 
       {!remindersQuery.isLoading && !remindersQuery.isError && visibleReminders.length > 0 && (
-        <Card>
+        <Card className="rounded-[1.75rem]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlarmClock className="h-4 w-4" />
@@ -344,24 +357,61 @@ export function TherapyRemindersPage() {
   );
 }
 
-function PageHeader({ onAdd }: { onAdd?: () => void }) {
+function PageHeader({
+  onAdd,
+  activeCount,
+  pausedCount,
+  nextReminderLabel,
+}: {
+  onAdd?: () => void;
+  activeCount: number;
+  pausedCount: number;
+  nextReminderLabel: string;
+}) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <div className="flex items-center gap-2">
-          <AlarmClock className="h-5 w-5 text-brand-600" />
-          <h1 className="text-2xl font-semibold text-slate-900">Therapy reminders</h1>
+    <section className="relative overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_82%_18%,rgba(34,197,94,0.28),transparent_24%),linear-gradient(135deg,#0f172a_0%,#13215f_58%,#0f766e_100%)] p-6 text-white shadow-lg shadow-slate-900/10 lg:p-8">
+      <div className="absolute -right-10 -top-12 h-44 w-44 rounded-full bg-brand-300/20 blur-2xl" />
+      <div className="absolute bottom-0 left-1/2 h-28 w-28 rounded-[2rem] bg-sky-300/10 rotate-12" />
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-2xl">
+          <p className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand-100 ring-1 ring-white/15">
+            Care schedule
+          </p>
+          <div className="mt-4 flex items-center gap-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-brand-100 ring-1 ring-white/15">
+              <AlarmClock className="h-6 w-6" />
+            </span>
+            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Therapy reminders</h1>
+          </div>
+          <p className="mt-3 max-w-xl leading-7 text-slate-200">
+            Manage medication reminders for yourself and family members with clear status and next-dose context.
+          </p>
         </div>
-        <p className="mt-1 text-sm text-slate-500">
-          Manage medication reminders for yourself and family members.
-        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <div className="grid grid-cols-3 gap-2 rounded-2xl bg-white/10 p-2 ring-1 ring-white/15">
+            <HeaderStat label="Active" value={String(activeCount)} />
+            <HeaderStat label="Paused" value={String(pausedCount)} />
+            <HeaderStat label="Next" value={nextReminderLabel} compact />
+          </div>
+          {onAdd && (
+            <Button size="sm" onClick={onAdd} className="h-11 rounded-xl bg-white px-5 font-bold text-ink-800 hover:bg-brand-50">
+              <Plus className="mr-1.5 h-4 w-4" />
+              Add reminder
+            </Button>
+          )}
+        </div>
       </div>
-      {onAdd && (
-        <Button size="sm" onClick={onAdd}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Add reminder
-        </Button>
-      )}
+    </section>
+  );
+}
+
+function HeaderStat({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
+  return (
+    <div className="min-w-0 rounded-xl bg-white/10 px-3 py-2">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-brand-100">{label}</p>
+      <p className={cn("mt-1 truncate font-extrabold text-white", compact ? "max-w-32 text-xs" : "text-lg")}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -400,7 +450,7 @@ function SummaryCard({
   compact?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
         <Icon className="h-4 w-4 text-brand-600" />
@@ -588,14 +638,30 @@ function DetailItem({
   );
 }
 
-function EmptyState({ title, description }: { title: string; description: string }) {
+function EmptyState({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-6 py-12 text-center">
-      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-md bg-brand-50 text-brand-700 ring-1 ring-brand-100">
-        <AlarmClock className="h-5 w-5" />
+    <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 ring-1 ring-brand-100">
+        <AlarmClock className="h-7 w-7" />
       </div>
-      <p className="mt-4 font-medium text-slate-900">{title}</p>
-      <p className="mt-1 text-sm text-slate-500">{description}</p>
+      <p className="mt-5 text-lg font-extrabold text-ink-800">{title}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">{description}</p>
+      {actionLabel && onAction && (
+        <Button type="button" className="mt-6 rounded-xl font-bold" onClick={onAction}>
+          <Plus className="mr-1.5 h-4 w-4" />
+          {actionLabel}
+        </Button>
+      )}
     </div>
   );
 }
